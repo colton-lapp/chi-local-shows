@@ -1,11 +1,14 @@
 """
 Band lookup: find a band's Spotify profile and construct Google search fallback URLs.
 
-Primary approach: DuckDuckGo search for "{band}" site:open.spotify.com chicago
-  → extracts Spotify artist URL → fetches artist data via Spotify API
-  → more accurate than Spotify API direct search for local/obscure bands
+Search strategy (in order):
+  1. DuckDuckGo: "{band}" site:open.spotify.com/artist chicago  (fast, library-based)
+  2. Bing via Playwright headless browser (if DDG is rate-limited or returns nothing)
+  3. Spotify API direct artist search (fallback, less Chicago-context-aware)
 
-Fallback: Spotify API direct artist search (broader but less contextual)
+Once a Spotify artist URL is found via 1 or 2, the Spotify API is used to pull
+genres, followers, popularity, and image. Google search URLs are always generated
+regardless of outcome so the user can click through manually.
 """
 import logging
 import re
@@ -129,52 +132,59 @@ def lookup_spotify_direct(band_name: str, sp: spotipy.Spotify) -> dict | None:
     }
 
 
+def _apply_spotify_data(result: BandResult, data: dict) -> BandResult:
+    result.spotify_id = data["spotify_id"]
+    result.spotify_url = data["spotify_url"]
+    result.spotify_genres = data["spotify_genres"]
+    result.spotify_followers = data["spotify_followers"]
+    result.spotify_popularity = data["spotify_popularity"]
+    result.spotify_image_url = data["spotify_image_url"]
+    result.lookup_status = "done"
+    return result
+
+
 def lookup_band(band_name: str, sp) -> BandResult:
     """
     Master lookup. Always returns BandResult with Google URLs populated.
 
     Strategy:
-      1. DuckDuckGo search to find Spotify URL (more accurate for local bands)
-      2. Spotify API to fetch artist data from the found URL
-      3. Fall back to Spotify API direct search if DDG found nothing
+      1. DuckDuckGo: find Spotify URL → Spotify API for artist data
+      2. Browser (Bing via Playwright): find Spotify URL → Spotify API for artist data
+      3. Spotify API direct search (less context-aware but reliable fallback)
       sp can be None (Spotify auth failed) — Google URLs still populated.
     """
     result = BandResult(name=band_name, **build_google_urls(band_name))
 
-    # Step 1: Try DuckDuckGo → Spotify URL → Spotify API data
+    # Step 1: DuckDuckGo → Spotify URL → Spotify API data
     spotify_url = find_spotify_url_via_ddg(band_name)
+
+    # Step 2: Browser search if DDG found nothing
+    if not spotify_url:
+        try:
+            import browser
+            if browser.is_available():
+                log.debug(f"  Trying browser search for '{band_name}'")
+                spotify_url = browser.search_for_spotify_url(band_name)
+        except Exception as e:
+            log.debug(f"  Browser search failed for '{band_name}': {e}")
+
     if spotify_url:
         artist_id = _extract_spotify_artist_id(spotify_url)
         if artist_id and sp:
             data = get_artist_data_from_spotify(artist_id, sp)
             if data:
-                result.spotify_id = data["spotify_id"]
-                result.spotify_url = data["spotify_url"]
-                result.spotify_genres = data["spotify_genres"]
-                result.spotify_followers = data["spotify_followers"]
-                result.spotify_popularity = data["spotify_popularity"]
-                result.spotify_image_url = data["spotify_image_url"]
-                result.lookup_status = "done"
-                return result
-        elif spotify_url and not sp:
-            # DDG found a URL but no Spotify client — store the URL manually
+                return _apply_spotify_data(result, data)
+        elif not sp:
             result.spotify_url = spotify_url
             result.spotify_id = artist_id
             result.lookup_status = "done"
             return result
 
-    # Step 2: Fall back to Spotify API direct search
+    # Step 3: Fall back to Spotify API direct search
     if sp:
         data = lookup_spotify_direct(band_name, sp)
         if data:
-            result.spotify_id = data["spotify_id"]
-            result.spotify_url = data["spotify_url"]
-            result.spotify_genres = data["spotify_genres"]
-            result.spotify_followers = data["spotify_followers"]
-            result.spotify_popularity = data["spotify_popularity"]
-            result.spotify_image_url = data["spotify_image_url"]
-            result.lookup_status = "done"
-            return result
+            return _apply_spotify_data(result, data)
 
     if sp is None:
         result.lookup_status = "error"

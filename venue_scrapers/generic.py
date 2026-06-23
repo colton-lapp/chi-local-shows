@@ -4,6 +4,11 @@ Generic venue scraper: fetch HTML → clean → LLM extraction → list[ShowResu
 Works for most venues with standard HTML event listings.
 For venues with JS-rendered pages or non-standard formats, write a venue-specific
 scraper in its own file and register it in __init__.py.
+
+Fetch strategy:
+  1. requests (fast, works for most static pages)
+  2. If content is suspiciously short (<500 chars), retry with Playwright headless
+     browser which executes JavaScript and waits for network idle.
 """
 import json
 import logging
@@ -13,12 +18,14 @@ import openai
 import requests
 from bs4 import BeautifulSoup
 
+import browser
 from models import ShowResult
 
 log = logging.getLogger(__name__)
 
 FETCH_TIMEOUT = 15
 MAX_TEXT_CHARS = 20_000
+JS_RENDER_THRESHOLD = 500  # chars below which we suspect JS rendering
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; chi-local-shows/1.0; +https://github.com/colton-lapp/chi-local-shows)"}
 
 SYSTEM_PROMPT_TEMPLATE = """\
@@ -49,15 +56,39 @@ Page text:
 {page_text}"""
 
 
-def _fetch_and_clean(url: str) -> str:
-    """Fetch a URL and return cleaned body text, stripped of script/style/nav."""
-    resp = requests.get(url, headers=HEADERS, timeout=FETCH_TIMEOUT)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "lxml")
+def _clean_html(html: str) -> str:
+    soup = BeautifulSoup(html, "lxml")
     for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg"]):
         tag.decompose()
-    text = " ".join(soup.get_text(separator=" ").split())
-    return text[:MAX_TEXT_CHARS]
+    return " ".join(soup.get_text(separator=" ").split())[:MAX_TEXT_CHARS]
+
+
+def _fetch_and_clean(url: str) -> str:
+    """
+    Fetch a URL and return cleaned body text.
+    Falls back to Playwright headless browser if the page looks JS-rendered.
+    """
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=FETCH_TIMEOUT)
+        resp.raise_for_status()
+        text = _clean_html(resp.text)
+    except Exception:
+        raise
+
+    if len(text) >= JS_RENDER_THRESHOLD:
+        return text
+
+    log.info(f"  Short content ({len(text)} chars) — retrying with browser")
+    try:
+        if browser.is_available():
+            text = browser.fetch_html(url)
+            log.info(f"  Browser fetch returned {len(text)} chars")
+        else:
+            log.warning("  Playwright not available; install with: task install")
+    except Exception as e:
+        log.warning(f"  Browser fetch failed: {e}")
+
+    return text
 
 
 def scrape(venue_config: dict, days_ahead: int = 7, **kwargs) -> list[ShowResult]:
@@ -68,6 +99,9 @@ def scrape(venue_config: dict, days_ahead: int = 7, **kwargs) -> list[ShowResult
     today = date.today()
     end_date = today + timedelta(days=days_ahead)
     results: list[ShowResult] = []
+    event_urls = venue_config.get("event_urls", [])
+    if not event_urls:
+        return results
 
     scrape_notes = venue_config.get("scrape_notes", "")
     notes_section = f"\nAdditional notes for this venue:\n{scrape_notes}" if scrape_notes else ""
@@ -80,7 +114,7 @@ def scrape(venue_config: dict, days_ahead: int = 7, **kwargs) -> list[ShowResult
 
     client = openai.OpenAI()
 
-    for url in venue_config.get("event_urls", []):
+    for url in event_urls:
         log.debug(f"  Fetching: {url}")
 
         try:
@@ -92,9 +126,6 @@ def scrape(venue_config: dict, days_ahead: int = 7, **kwargs) -> list[ShowResult
                 scrape_error=f"Fetch failed: {e}",
             ))
             continue
-
-        if len(page_text) < 200:
-            log.warning(f"  Very little text from {url} ({len(page_text)} chars) — page may be JS-rendered")
 
         user_prompt = USER_PROMPT_TEMPLATE.format(
             venue_name=venue_config["name"],

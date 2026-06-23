@@ -87,6 +87,54 @@ When the generic LLM scraper isn't reliable for a venue (JS-heavy page, unusual 
 
 See `venue_scrapers/empty_bottle.py` for a template with comments.
 
+## Acceptance Criteria
+
+Before shipping any change, verify these gates pass in order:
+
+### 1. Unit tests (no API keys needed)
+```sh
+task test
+# Expected: 36 passed
+```
+
+What's covered:
+- `test_band_lookup.py` — URL building, `_classify_results` bucketing (Spotify/Instagram/Bandcamp/other/search-engine exclusions), `lookup_band` flows (DDG hit, all-fail, Instagram-only, Bandcamp-only, no Spotify client)
+- `test_db.py` — venue upsert, show insert deduplication, band get-or-create, `update_band_lookup`, `get_bands_needing_lookup` with retry flag, show-band linking, scrape log
+- `test_generic_scraper.py` — LLM path, requests fallback to Playwright, empty event_urls early return, fetch error handling, date filtering
+
+### 2. Import sanity (no API keys needed)
+```sh
+uv run python -c "import db, models, band_lookup, venue_scrapers, browser; print('OK')"
+# Expected: OK
+```
+
+### 3. CLI help (no API keys needed)
+```sh
+uv run python fetch.py --help
+# Expected: argparse usage block with --venue, --days, --skip-lookup, --retry-errors
+```
+
+### 4. Scrape-only smoke test (needs `OPENAI_API_KEY`)
+```sh
+task fetch -- --venue "Empty Bottle" --skip-lookup
+# Expected:
+#   - shows.db created
+#   - scrape_log has a row with status='ok' and shows_found > 0
+#   - shows table has rows; bands table has Google URLs, lookup_status='pending'
+#   - Re-running produces no duplicate shows (idempotent)
+```
+
+### 5. Full fetch smoke test (needs `OPENAI_API_KEY` + Spotify keys)
+```sh
+task fetch -- --venue "Empty Bottle"
+# Expected:
+#   - bands table updated: lookup_status in ('done','not_found','error') for all bands
+#   - 'done' bands have at least one of: spotify_url, instagram_url, bandcamp_url
+#   - google_general_url populated for every band regardless of outcome
+```
+
+---
+
 ## Project Structure
 
 ```

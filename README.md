@@ -11,6 +11,15 @@ cp .env.example .env    # fill in your API keys
 task install            # uv sync + playwright install chromium
 ```
 
+### Adding dependencies
+
+```sh
+uv add <package>          # add to project deps
+uv add --group dev <pkg>  # add as dev-only dep (tests, linters)
+```
+
+`pyproject.toml` intentionally has no version pins — `uv.lock` handles reproducibility. `uv add` updates both files atomically.
+
 ### API Keys
 
 | Key | Where to get it |

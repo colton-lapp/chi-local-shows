@@ -4,20 +4,20 @@ version = "0.1.0"
 description = "Chicago local show discovery — scrape venues, find bands"
 requires-python = ">=3.11"
 dependencies = [
-    "requests>=2.31",
-    "beautifulsoup4>=4.12",
-    "lxml>=5.0",
-    "spotipy>=2.23",
-    "openai>=1.30",
-    "python-dotenv>=1.0",
-    "duckduckgo-search>=6.0",
-    "playwright>=1.40",
+    "requests",
+    "beautifulsoup4",
+    "lxml",
+    "spotipy",
+    "openai",
+    "python-dotenv",
+    "duckduckgo-search",
+    "playwright",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0",
-    "pytest-mock>=3.12",
+    "pytest",
+    "pytest-mock",
 ]
 
 [tool.pytest.ini_options]

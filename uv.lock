@@ -167,20 +167,20 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "beautifulsoup4", specifier = ">=4.12" },
-    { name = "duckduckgo-search", specifier = ">=6.0" },
-    { name = "lxml", specifier = ">=5.0" },
-    { name = "openai", specifier = ">=1.30" },
-    { name = "playwright", specifier = ">=1.40" },
-    { name = "python-dotenv", specifier = ">=1.0" },
-    { name = "requests", specifier = ">=2.31" },
-    { name = "spotipy", specifier = ">=2.23" },
+    { name = "beautifulsoup4" },
+    { name = "duckduckgo-search" },
+    { name = "lxml" },
+    { name = "openai" },
+    { name = "playwright" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+    { name = "spotipy" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-mock", specifier = ">=3.12" },
+    { name = "pytest" },
+    { name = "pytest-mock" },
 ]
 
 [[package]]

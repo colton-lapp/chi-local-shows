@@ -24,6 +24,10 @@ class BandResult:
     spotify_followers: int | None = None
     spotify_popularity: int | None = None
     spotify_image_url: str | None = None
+    # Social/streaming URLs found via search — None if not found
+    bandcamp_url: str | None = None
+    instagram_url: str | None = None
+    other_urls: list[str] = field(default_factory=list)  # top 5 other search result URLs
     # Google search URLs — always constructed, even on lookup failure
     google_general_url: str = ""
     google_spotify_url: str = ""

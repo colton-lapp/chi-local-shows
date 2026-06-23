@@ -1,0 +1,25 @@
+[project]
+name = "chi-local-shows"
+version = "0.1.0"
+description = "Chicago local show discovery — scrape venues, find bands"
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "lxml",
+    "spotipy",
+    "openai",
+    "python-dotenv",
+    "duckduckgo-search",
+    "playwright",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-mock",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

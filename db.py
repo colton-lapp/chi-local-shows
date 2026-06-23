@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS bands (
     spotify_followers    INTEGER,
     spotify_popularity   INTEGER,
     spotify_image_url    TEXT,
+    bandcamp_url         TEXT,
+    instagram_url        TEXT,
+    other_urls           TEXT,
     google_general_url   TEXT,
     google_spotify_url   TEXT,
     google_bandcamp_url  TEXT,
@@ -77,6 +80,20 @@ def get_conn() -> sqlite3.Connection:
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA_SQL)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after initial schema. Safe to call repeatedly."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(bands)").fetchall()}
+    new_cols = [
+        ("bandcamp_url", "TEXT"),
+        ("instagram_url", "TEXT"),
+        ("other_urls", "TEXT"),
+    ]
+    for col, typ in new_cols:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE bands ADD COLUMN {col} {typ}")
 
 
 def upsert_venue(name: str, address: str | None = None, description: str | None = None) -> int:
@@ -188,6 +205,7 @@ def update_band_lookup(band_id: int, result: BandResult) -> None:
             """UPDATE bands SET
                spotify_id=?, spotify_url=?, spotify_genres=?,
                spotify_followers=?, spotify_popularity=?, spotify_image_url=?,
+               bandcamp_url=?, instagram_url=?, other_urls=?,
                google_general_url=?, google_spotify_url=?,
                google_bandcamp_url=?, google_instagram_url=?,
                lookup_status=?, lookup_error=?, looked_up_at=?
@@ -199,6 +217,9 @@ def update_band_lookup(band_id: int, result: BandResult) -> None:
                 result.spotify_followers,
                 result.spotify_popularity,
                 result.spotify_image_url,
+                result.bandcamp_url,
+                result.instagram_url,
+                json.dumps(result.other_urls),
                 result.google_general_url,
                 result.google_spotify_url,
                 result.google_bandcamp_url,

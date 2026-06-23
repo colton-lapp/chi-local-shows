@@ -1,0 +1,44 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install dependencies and Playwright browser
+    cmds:
+      - uv sync --group dev
+      - uv run playwright install chromium
+
+  fetch:
+    desc: "Fetch shows — pass args directly: task fetch -- --venue 'Empty Bottle' --days 14"
+    cmds:
+      - uv run python fetch.py {{.CLI_ARGS}}
+
+  test:
+    desc: Run test suite
+    cmds:
+      - uv run pytest {{.CLI_ARGS}}
+
+  lint:
+    desc: Syntax-check all Python files
+    cmds:
+      - uv run python -m py_compile db.py models.py band_lookup.py fetch.py browser.py venue_scrapers/generic.py
+
+  db-shows:
+    desc: Print all shows in DB
+    cmds:
+      - sqlite3 shows.db "SELECT s.show_date, v.name, s.show_time, s.raw_title FROM shows s JOIN venues v ON s.venue_id=v.id ORDER BY s.show_date, v.name"
+
+  db-bands:
+    desc: Print all bands with lookup status and Spotify URL
+    cmds:
+      - sqlite3 shows.db "SELECT name, lookup_status, COALESCE(spotify_url, google_general_url) as link FROM bands ORDER BY lookup_status, name"
+
+  db-log:
+    desc: Print recent scrape log
+    cmds:
+      - sqlite3 shows.db "SELECT run_at, v.name, l.status, l.shows_found, l.error_msg FROM scrape_log l JOIN venues v ON l.venue_id=v.id ORDER BY run_at DESC LIMIT 20"
+
+  db-reset:
+    desc: Delete shows.db (fresh start)
+    prompt: Delete shows.db and start fresh?
+    cmds:
+      - rm -f shows.db

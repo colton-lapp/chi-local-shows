@@ -1,0 +1,7 @@
+.env
+shows.db
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/

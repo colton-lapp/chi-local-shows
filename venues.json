@@ -1,0 +1,66 @@
+[
+  {
+    "name": "Empty Bottle",
+    "address": "1035 N Western Ave, Chicago, IL 60622",
+    "description": "Beloved indie/punk/experimental dive in Ukrainian Village",
+    "active": true,
+    "event_urls": ["https://www.emptybottle.com/events/"],
+    "scrape_notes": "Exclude DJ nights, dance parties, and comedy shows. Only include live band performances. Band names are usually in the event title."
+  },
+  {
+    "name": "Schubas Tavern",
+    "address": "3159 N Southport Ave, Chicago, IL 60657",
+    "description": "Intimate Lakeview venue with strong indie and singer-songwriter bookings",
+    "active": true,
+    "event_urls": ["https://www.lh-st.com/venues/chicago-il-schubas-tavern"],
+    "scrape_notes": "Shared calendar platform with Lincoln Hall. Ignore 'Private Event' or corporate listings."
+  },
+  {
+    "name": "Lincoln Hall",
+    "address": "2424 N Lincoln Ave, Chicago, IL 60614",
+    "description": "Mid-size Lincoln Park venue, quality indie and rock bookings",
+    "active": true,
+    "event_urls": ["https://www.lh-st.com/venues/chicago-il-lincoln-hall"],
+    "scrape_notes": "Shared calendar platform with Schubas. Ignore 'Private Event' or corporate listings."
+  },
+  {
+    "name": "The Hideout",
+    "address": "1354 W Wabansia Ave, Chicago, IL 60642",
+    "description": "Scrappy neighborhood bar with indie, country, and punk bookings",
+    "active": true,
+    "event_urls": ["https://www.hideoutchicago.com/calendar"],
+    "scrape_notes": "Small venue. Some events are political fundraisers or comedy — only include live music. Bands sometimes listed as 'w/' supporting acts."
+  },
+  {
+    "name": "Sleeping Village",
+    "address": "3734 W Belmont Ave, Chicago, IL 60618",
+    "description": "Avondale venue for underground, experimental, and indie shows",
+    "active": true,
+    "event_urls": ["https://www.sleeping-village.com/events"],
+    "scrape_notes": "Mix of live music and DJ nights. Only include shows with band/artist names, exclude pure DJ events."
+  },
+  {
+    "name": "Subterranean",
+    "address": "2011 W North Ave, Chicago, IL 60647",
+    "description": "Wicker Park multi-level venue with indie, metal, and hip-hop",
+    "active": true,
+    "event_urls": ["https://subt.net/events/"],
+    "scrape_notes": "Multi-genre venue. Include all live performance types."
+  },
+  {
+    "name": "Thalia Hall",
+    "address": "1807 S Allport St, Chicago, IL 60608",
+    "description": "Historic Pilsen ballroom, mid-size indie and folk bookings",
+    "active": true,
+    "event_urls": ["https://www.thaliahallchicago.com/events"],
+    "scrape_notes": "Also hosts film screenings and private events — exclude those, only include live music."
+  },
+  {
+    "name": "Beat Kitchen",
+    "address": "2100 W Belmont Ave, Chicago, IL 60618",
+    "description": "Roscoe Village club with eclectic indie and rock bookings",
+    "active": true,
+    "event_urls": ["https://www.beatkitchen.com/events/"],
+    "scrape_notes": "Live music focused. Include all band shows."
+  }
+]

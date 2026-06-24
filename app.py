@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import db
+import scoring
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 DAYS = 14
@@ -21,6 +22,11 @@ _VENUES_JSON = Path(__file__).parent / "venues.json"
 _venue_cfg: dict[str, dict] = {
     v["name"]: v for v in json.loads(_VENUES_JSON.read_text())
 }
+
+_LOGO_URLS = json.loads((STATIC_DIR / "logo_urls.json").read_text())
+_LOGO_INSTAGRAM = f'<img src="{_LOGO_URLS["instagram"]}" class="social-icon" alt="" width="14" height="14">'
+_LOGO_BANDCAMP  = f'<img src="{_LOGO_URLS["bandcamp"]}"  class="social-icon" alt="" width="14" height="14">'
+_LOGO_SPOTIFY   = f'<img src="{_LOGO_URLS["spotify"]}"   class="social-icon" alt="" width="14" height="14">'
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,30 +76,46 @@ def _render_band_card(b) -> str:
         try:
             genres = json.loads(genres_raw)
             if genres:
-                chips = "".join(f'<span class="genre-tag">{_esc(g)}</span>' for g in genres[:4])
+                chips = "".join(
+                    f'<span class="genre-tag">{_esc(g)}</span>' for g in genres[:4]
+                )
                 genre_chips = f'<div class="genre-tags">{chips}</div>'
         except (ValueError, TypeError):
             pass
 
     followers = _fmt_followers(b["spotify_followers"])
-    meta_html = f'<div class="band-meta">{_esc(followers)}</div>' if followers else ""
+    meta_html = (
+        f'<div class="band-meta"><span class="followers-count">{_esc(followers)}</span></div>'
+        if followers else ""
+    )
 
     links = []
     if spotify_url:
-        links.append(f'<a href="{_esc(spotify_url)}" target="_blank">Spotify</a>')
+        links.append(
+            f'<a class="link-spotify" href="{_esc(spotify_url)}" target="_blank">'
+            f'{_LOGO_SPOTIFY} Spotify</a>'
+        )
     if instagram_url:
-        links.append(f'<a href="{_esc(instagram_url)}" target="_blank">Instagram</a>')
+        links.append(
+            f'<a class="link-instagram" href="{_esc(instagram_url)}" target="_blank">'
+            f'{_LOGO_INSTAGRAM} Instagram</a>'
+        )
     if bandcamp_url:
-        links.append(f'<a href="{_esc(bandcamp_url)}" target="_blank">Bandcamp</a>')
+        links.append(
+            f'<a class="link-bandcamp" href="{_esc(bandcamp_url)}" target="_blank">'
+            f'{_LOGO_BANDCAMP} Bandcamp</a>'
+        )
     links_html = f'<div class="band-links">{"".join(links)}</div>' if links else ""
 
     info_col = f"""<div class="band-info-col">
       <div class="band-top-row">
         {img_html}
-        <span>{name_html}</span>
+        <div class="band-top-text">
+          {name_html}
+          {genre_chips}
+          {meta_html}
+        </div>
       </div>
-      {genre_chips}
-      {meta_html}
       {links_html}
     </div>"""
 
@@ -101,10 +123,20 @@ def _render_band_card(b) -> str:
     embeds = []
     if spotify_id:
         src = f"https://open.spotify.com/embed/artist/{_esc(spotify_id)}?utm_source=generator&theme=0"
-        embeds.append(f'<div class="spotify-embed"><iframe src="{src}" height="80" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe></div>')
+        embeds.append(
+            f'<div class="spotify-embed"><iframe src="{src}" height="80" '
+            f'allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" '
+            f'loading="lazy"></iframe></div>'
+        )
     if bandcamp_album_id:
-        src = f"https://bandcamp.com/EmbeddedPlayer/album={_esc(bandcamp_album_id)}/size=small/bgcol=ffffff/linkcol=2d6a4f/artwork=small/transparent=true/"
-        embeds.append(f'<div class="bandcamp-embed"><iframe src="{src}" height="42" seamless loading="lazy"></iframe></div>')
+        src = (
+            f"https://bandcamp.com/EmbeddedPlayer/album={_esc(bandcamp_album_id)}"
+            f"/size=small/bgcol=ffffff/linkcol=1DA0C3/artwork=small/transparent=true/"
+        )
+        embeds.append(
+            f'<div class="bandcamp-embed"><iframe src="{src}" height="42" '
+            f'seamless loading="lazy"></iframe></div>'
+        )
 
     embeds_col = f'<div class="band-embeds-col">{"".join(embeds)}</div>'
 
@@ -122,7 +154,10 @@ def _render_band_card(b) -> str:
     more_html = ""
     if more_items:
         items_html = "".join(f"<div>{item}</div>" for item in more_items)
-        more_html = f'<details class="band-more"><summary>More info</summary><div class="band-more-content">{items_html}</div></details>'
+        more_html = (
+            f'<details class="band-more"><summary>More info</summary>'
+            f'<div class="band-more-content">{items_html}</div></details>'
+        )
 
     return f"""<div class="band-card">
     {info_col}
@@ -131,11 +166,12 @@ def _render_band_card(b) -> str:
   </div>"""
 
 
-def _render_show_card(show, bands) -> str:
+def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) -> str:
     venue_name = show["venue_name"]
     venue = _esc(venue_name)
     event_url = show["event_url"]
     raw_title = show["raw_title"]
+    show_date = show["show_date"]
 
     # Venue image from venues.json
     vcfg = _venue_cfg.get(venue_name, {})
@@ -148,20 +184,22 @@ def _render_show_card(show, bands) -> str:
         else '<div class="venue-thumb-placeholder"></div>'
     )
 
-    # Venue name: linked to specific show event page if available
     venue_html = f'<a href="{_esc(event_url)}" target="_blank">{venue}</a>' if event_url else venue
     time_html = f'<span class="show-time">{_esc(show["show_time"])}</span>' if show["show_time"] else ""
-    venue_row = f'<div class="show-header-main">{venue_img_html}<span class="show-venue">{venue_html}</span>{time_html}</div>'
+    venue_row = (
+        f'<div class="show-header-main">'
+        f'{venue_img_html}<span class="show-venue">{venue_html}</span>{time_html}'
+        f'</div>'
+    )
 
-    # "Go to venue" button
     venue_btn_html = ""
     if venue_homepage:
-        venue_btn_html = f'<a class="venue-btn" href="{_esc(venue_homepage)}" target="_blank">Venue website ↗</a>'
+        venue_btn_html = (
+            f'<a class="venue-btn" href="{_esc(venue_homepage)}" target="_blank">Venue website ↗</a>'
+        )
 
-    # Show title is secondary context below the venue
     title_html = f'<div class="show-title">{_esc(raw_title)}</div>' if raw_title else ""
 
-    # Metadata chips: ticket price, age restriction
     meta_chips = []
     if show["ticket_price"]:
         meta_chips.append(f'<span class="show-chip">{_esc(show["ticket_price"])}</span>')
@@ -171,58 +209,80 @@ def _render_show_card(show, bands) -> str:
         meta_chips.append('<span class="show-chip show-chip--warn">⚠ verify dates</span>')
     meta_row = f'<div class="show-chips">{"".join(meta_chips)}</div>' if meta_chips else ""
 
-    # LLM notes
     notes_html = f'<div class="show-notes">{_esc(show["notes"])}</div>' if show["notes"] else ""
+
+    # Score badge
+    badge_html = ""
+    is_rec = scoring.is_recommended(score)
+    if is_rec and reasons:
+        reasons_text = " · ".join(reasons)
+        badge_html = (
+            f'<div class="score-badge">⭐ Recommended — {_esc(reasons_text)}</div>'
+        )
 
     if bands:
         bands_html = "".join(_render_band_card(b) for b in bands)
     else:
         raw = _esc(raw_title or "Unknown show")
-        bands_html = f'<div class="band-card"><div class="band-info-col"><div class="band-top-row"><div class="band-img-placeholder">♪</div><span class="band-name">{raw}</span></div></div><div class="band-embeds-col"></div></div>'
+        bands_html = (
+            f'<div class="band-card"><div class="band-info-col">'
+            f'<div class="band-top-row"><div class="band-img-placeholder">♪</div>'
+            f'<div class="band-top-text"><span class="band-name">{raw}</span></div></div>'
+            f'</div><div class="band-embeds-col"></div></div>'
+        )
 
-    return f"""<div class="show-card">
-  <div class="show-header">
-    {venue_row}
-    {venue_btn_html}
-    {title_html}
-    {meta_row}
-    {notes_html}
-  </div>
-  <div class="bands-list">{bands_html}</div>
-</div>"""
+    extra_class = " show-card--recommended" if is_rec else ""
+    return (
+        f'<div class="show-card{extra_class}" '
+        f'data-date="{_esc(show_date)}" data-venue="{_esc(venue_name)}">\n'
+        f'  <div class="show-header">\n'
+        f'    {badge_html}\n'
+        f'    {venue_row}\n'
+        f'    {venue_btn_html}\n'
+        f'    {title_html}\n'
+        f'    {meta_row}\n'
+        f'    {notes_html}\n'
+        f'  </div>\n'
+        f'  <div class="bands-list">{bands_html}</div>\n'
+        f'</div>'
+    )
 
 
-def _render_day_section(label: str, cards: list[str]) -> str:
-    return f"""<section class="day-section">
-  <div class="day-label">{label}</div>
-  {"".join(cards)}
-</section>"""
+def _render_day_section(label: str, cards: list[str], date_iso: str) -> str:
+    return (
+        f'<section class="day-section" data-date="{_esc(date_iso)}">\n'
+        f'  <div class="day-label">{label}</div>\n'
+        f'  {"".join(cards)}\n'
+        f'</section>'
+    )
 
 
-def _render_page(content: str, today: date) -> str:
+def _render_page(content: str, today: date, static_root: str = "/static") -> str:
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chi Local Shows</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="{static_root}/style.css">
 </head>
 <body>
   <header>
-    <h1>Chi Local Shows</h1>
-    <span class="subtitle">Next {DAYS} days &mdash; {today.strftime("%B %-d, %Y")}</span>
-    <button id="view-toggle" disabled title="Coming soon">By Venue</button>
+    <div class="header-top">
+      <h1>Chi Local Shows</h1>
+      <span class="subtitle">Next {DAYS} days &mdash; {today.strftime("%B %-d, %Y")}</span>
+    </div>
+    <div id="filters"></div>
   </header>
   <main>{content}</main>
-  <script src="/static/app.js"></script>
+  <script src="{static_root}/app.js"></script>
 </body>
 </html>"""
 
 
 # ── Page builder ──────────────────────────────────────────────────────────────
 
-def _build_html() -> str:
+def _build_html(static_root: str = "/static") -> str:
     today = date.today()
     end = today + timedelta(days=DAYS)
     shows = db.get_shows_in_range(today.isoformat(), end.isoformat())
@@ -234,14 +294,19 @@ def _build_html() -> str:
     sections = []
     for d, day_shows in sorted(by_date.items()):
         label = date.fromisoformat(d).strftime("%A, %B %-d")
-        cards = [
-            _render_show_card(show, db.get_bands_for_show(show["id"]))
-            for show in day_shows
-        ]
-        sections.append(_render_day_section(label, cards))
+        cards = []
+        for show in day_shows:
+            bands = db.get_bands_for_show(show["id"])
+            score, reasons = scoring.score_show(show["venue_name"], bands)
+            cards.append(_render_show_card(show, bands, score, reasons))
+        sections.append(_render_day_section(label, cards, d))
 
-    body = "".join(sections) if sections else "<p style='padding:2rem;color:#999'>No shows in the next 14 days.</p>"
-    return _render_page(body, today)
+    body = (
+        "".join(sections)
+        if sections
+        else "<p style='padding:2rem;color:#999'>No shows in the next 14 days.</p>"
+    )
+    return _render_page(body, today, static_root)
 
 
 # ── HTTP handler ──────────────────────────────────────────────────────────────

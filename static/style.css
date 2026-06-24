@@ -17,15 +17,23 @@ header {
   background: #111;
   color: #fff;
   padding: 1rem 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+
+.header-top {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  margin-bottom: 0.6rem;
 }
 
 header h1 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -35,15 +43,54 @@ header .subtitle {
   flex: 1;
 }
 
-#view-toggle {
-  font-size: 0.75rem;
-  padding: 0.35rem 0.8rem;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background: transparent;
+/* ── Filters ───────────────────────────────────────────────── */
+#filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.filter-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: #666;
-  cursor: not-allowed;
-  letter-spacing: 0.03em;
+  min-width: 3rem;
+}
+
+.filter-btn {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid #333;
+  border-radius: 99px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  background: #222;
+  color: #fff;
+  border-color: #555;
+}
+
+.filter-btn--active {
+  background: #fff;
+  color: #111;
+  border-color: #fff;
+  font-weight: 600;
 }
 
 /* ── Layout ────────────────────────────────────────────────── */
@@ -57,12 +104,14 @@ main {
 .day-section { margin-bottom: 2.5rem; }
 
 .day-label {
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 1.15rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #555;
-  margin-bottom: 0.75rem;
+  letter-spacing: 0.07em;
+  color: #333;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid #d0d0d0;
 }
 
 /* ── Show card ─────────────────────────────────────────────── */
@@ -72,6 +121,12 @@ main {
   box-shadow: 0 1px 4px rgba(0,0,0,.08);
   margin-bottom: 1.25rem;
   overflow: hidden;
+  border-left: 4px solid transparent;
+}
+
+.show-card--recommended {
+  border-left-color: #2d9e4f;
+  box-shadow: 0 1px 8px rgba(45,158,79,.15);
 }
 
 .show-header {
@@ -79,7 +134,23 @@ main {
   border-bottom: 1px solid #eee;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
+}
+
+/* Score badge */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1a6e33;
+  background: #e6f9ec;
+  border: 1px solid #b0e8bf;
+  border-radius: 5px;
+  padding: 0.2rem 0.6rem;
+  margin-bottom: 0.15rem;
+  width: fit-content;
 }
 
 /* Venue + time: primary row */
@@ -90,34 +161,28 @@ main {
 }
 
 .show-venue {
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.2rem;
+  font-weight: 800;
   color: #111;
+  letter-spacing: -0.01em;
 }
 
-.show-venue a {
-  color: #111;
-}
-
-.show-venue a:hover {
-  color: #1a5c36;
-  text-decoration: underline;
-}
+.show-venue a { color: #111; }
+.show-venue a:hover { color: #1a5c36; text-decoration: underline; }
 
 .show-time {
-  font-size: 0.85rem;
-  color: #888;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #555;
   white-space: nowrap;
 }
 
-/* Show title: secondary line below venue */
 .show-title {
   font-size: 0.82rem;
   color: #888;
   line-height: 1.35;
 }
 
-/* Venue thumbnail in show header */
 .venue-thumb {
   width: 36px;
   height: 36px;
@@ -132,7 +197,6 @@ main {
   flex-shrink: 0;
 }
 
-/* Venue website button */
 .venue-btn {
   display: inline-block;
   margin-top: 0.3rem;
@@ -145,12 +209,8 @@ main {
   padding: 0.2rem 0.55rem;
   transition: background 0.1s;
 }
-.venue-btn:hover {
-  background: #e4e4e4;
-  text-decoration: none;
-}
+.venue-btn:hover { background: #e4e4e4; text-decoration: none; }
 
-/* Metadata chips: price, age, confidence */
 .show-chips {
   display: flex;
   flex-wrap: wrap;
@@ -173,7 +233,6 @@ main {
   background: #fef3c7;
 }
 
-/* LLM notes */
 .show-notes {
   font-size: 0.78rem;
   color: #999;
@@ -206,7 +265,7 @@ main {
 .band-info-col {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.5rem;
   min-width: 0;
 }
 
@@ -214,6 +273,13 @@ main {
   display: flex;
   align-items: flex-start;
   gap: 0.65rem;
+}
+
+.band-top-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
 }
 
 .band-img {
@@ -253,39 +319,68 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
 }
 
 .genre-tag {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: #2d6a4f;
-  background: #d8f3dc;
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1e6e43;
+  background: #d4f0df;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
-.band-meta {
-  font-size: 0.78rem;
-  color: #888;
+.followers-count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #444;
 }
 
+.band-meta {
+  line-height: 1;
+}
+
+/* ── Social / streaming links ──────────────────────────────── */
 .band-links {
-  font-size: 0.75rem;
   display: flex;
-  gap: 0.4rem;
+  gap: 0.45rem;
   flex-wrap: wrap;
-  margin-top: auto;
 }
 
 .band-links a {
-  color: #555;
-  background: #f2f2f2;
-  padding: 0.15rem 0.5rem;
-  border-radius: 3px;
-  transition: background 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.22rem 0.55rem;
+  border-radius: 5px;
+  transition: filter 0.12s, opacity 0.12s;
+  text-decoration: none;
+}
+.band-links a:hover { opacity: 0.8; text-decoration: none; }
+
+.social-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
-.band-links a:hover {
-  background: #e0e0e0;
-  text-decoration: none;
+.link-spotify {
+  color: #1a8a3e;
+  background: #eaf7ee;
+  border: 1px solid #c3e8ce;
+}
+
+.link-instagram {
+  color: #c0304c;
+  background: #fdeef1;
+  border: 1px solid #f4c0cc;
+}
+
+.link-bandcamp {
+  color: #0f6e87;
+  background: #e5f5fa;
+  border: 1px solid #b3dde8;
 }
 
 /* ── Band embeds column (right) ────────────────────────────── */
@@ -339,9 +434,12 @@ details[open] .band-more summary::before { transform: rotate(90deg); }
 
 /* ── Responsive: stack on narrow screens ───────────────────── */
 @media (max-width: 600px) {
+  header { padding: 0.75rem 1rem; }
+
   .band-card {
     grid-template-columns: 1fr;
   }
   .band-more { grid-column: 1; }
-  header { padding: 0.75rem 1rem; }
+
+  .filter-btn { font-size: 0.68rem; padding: 0.2rem 0.5rem; }
 }

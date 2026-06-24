@@ -28,6 +28,17 @@ jobs:
           SPOTIPY_CLIENT_ID: ${{ secrets.SPOTIPY_CLIENT_ID }}
           SPOTIPY_CLIENT_SECRET: ${{ secrets.SPOTIPY_CLIENT_SECRET }}
 
+      - name: Export data cache
+        run: uv run python cache.py export
+
+      - name: Commit data cache
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add shows_cache.json
+          git diff --staged --quiet || git commit -m "chore: update shows cache [skip ci]"
+          git push
+
       - name: Export static HTML
         run: uv run python export.py
 

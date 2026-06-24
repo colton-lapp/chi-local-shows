@@ -21,8 +21,8 @@ jobs:
       - name: Install Playwright browser
         run: uv run playwright install chromium --with-deps
 
-      - name: Fetch shows (14-day window)
-        run: uv run python fetch.py --days 14
+      - name: Fetch shows (7-day window)
+        run: uv run python fetch.py --days 7
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SPOTIPY_CLIENT_ID: ${{ secrets.SPOTIPY_CLIENT_ID }}

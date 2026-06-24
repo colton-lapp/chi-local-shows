@@ -1,0 +1,445 @@
+/* ── Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Base ──────────────────────────────────────────────────── */
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #ebebeb;
+  color: #111;
+  line-height: 1.5;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Header ────────────────────────────────────────────────── */
+header {
+  background: #111;
+  color: #fff;
+  padding: 1rem 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 0.6rem;
+}
+
+header h1 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+header .subtitle {
+  font-size: 0.8rem;
+  color: #888;
+  flex: 1;
+}
+
+/* ── Filters ───────────────────────────────────────────────── */
+#filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.filter-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #666;
+  min-width: 3rem;
+}
+
+.filter-btn {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid #333;
+  border-radius: 99px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  background: #222;
+  color: #fff;
+  border-color: #555;
+}
+
+.filter-btn--active {
+  background: #fff;
+  color: #111;
+  border-color: #fff;
+  font-weight: 600;
+}
+
+/* ── Layout ────────────────────────────────────────────────── */
+main {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+/* ── Day section ───────────────────────────────────────────── */
+.day-section { margin-bottom: 2.5rem; }
+
+.day-label {
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #333;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid #d0d0d0;
+}
+
+/* ── Show card ─────────────────────────────────────────────── */
+.show-card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+  border-left: 4px solid transparent;
+}
+
+.show-card--recommended {
+  border-left-color: #2d9e4f;
+  box-shadow: 0 1px 8px rgba(45,158,79,.15);
+}
+
+.show-header {
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Score badge */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1a6e33;
+  background: #e6f9ec;
+  border: 1px solid #b0e8bf;
+  border-radius: 5px;
+  padding: 0.2rem 0.6rem;
+  margin-bottom: 0.15rem;
+  width: fit-content;
+}
+
+/* Venue + time: primary row */
+.show-header-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.show-venue {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #111;
+  letter-spacing: -0.01em;
+}
+
+.show-venue a { color: #111; }
+.show-venue a:hover { color: #1a5c36; text-decoration: underline; }
+
+.show-time {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #555;
+  white-space: nowrap;
+}
+
+.show-title {
+  font-size: 0.82rem;
+  color: #888;
+  line-height: 1.35;
+}
+
+.venue-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.venue-thumb-placeholder {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.venue-btn {
+  display: inline-block;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #555;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.2rem 0.55rem;
+  transition: background 0.1s;
+}
+.venue-btn:hover { background: #e4e4e4; text-decoration: none; }
+
+.show-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.show-chip {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #555;
+  background: #f0f0f0;
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.show-chip--warn {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.show-notes {
+  font-size: 0.78rem;
+  color: #999;
+  font-style: italic;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+/* ── Band cards list ───────────────────────────────────────── */
+.bands-list {
+  padding: 0.85rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Band card ─────────────────────────────────────────────── */
+.band-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0.85rem 0;
+}
+
+.band-card + .band-card {
+  border-top: 1px solid #f0f0f0;
+}
+
+/* ── Band info column (left) ───────────────────────────────── */
+.band-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.band-top-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.band-top-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.band-img {
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.band-img-placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  background: #e8e8e8;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  color: #ccc;
+}
+
+.band-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111;
+  line-height: 1.25;
+}
+
+a.band-name:hover { color: #1a5c36; text-decoration: underline; }
+
+.genre-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.genre-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1e6e43;
+  background: #d4f0df;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.followers-count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #444;
+}
+
+.band-meta {
+  line-height: 1;
+}
+
+/* ── Social / streaming links ──────────────────────────────── */
+.band-links {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.band-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.22rem 0.55rem;
+  border-radius: 5px;
+  transition: filter 0.12s, opacity 0.12s;
+  text-decoration: none;
+}
+.band-links a:hover { opacity: 0.8; text-decoration: none; }
+
+.social-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.link-spotify {
+  color: #1a8a3e;
+  background: #eaf7ee;
+  border: 1px solid #c3e8ce;
+}
+
+.link-instagram {
+  color: #c0304c;
+  background: #fdeef1;
+  border: 1px solid #f4c0cc;
+}
+
+.link-bandcamp {
+  color: #0f6e87;
+  background: #e5f5fa;
+  border: 1px solid #b3dde8;
+}
+
+/* ── Band embeds column (right) ────────────────────────────── */
+.band-embeds-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.spotify-embed iframe,
+.bandcamp-embed iframe {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+}
+
+/* ── Details / More info ───────────────────────────────────── */
+.band-more {
+  font-size: 0.72rem;
+  color: #aaa;
+  grid-column: 1 / -1;
+}
+
+.band-more summary {
+  cursor: pointer;
+  color: #ccc;
+  user-select: none;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.band-more summary::-webkit-details-marker { display: none; }
+.band-more summary::before { content: "▶"; font-size: 0.55rem; transition: transform 0.15s; }
+details[open] .band-more summary::before { transform: rotate(90deg); }
+
+.band-more-content {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: #f9f9f9;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.band-more-content a { color: #888; }
+.band-more-content a:hover { color: #555; text-decoration: underline; }
+
+/* ── Responsive: stack on narrow screens ───────────────────── */
+@media (max-width: 600px) {
+  header { padding: 0.75rem 1rem; }
+
+  .band-card {
+    grid-template-columns: 1fr;
+  }
+  .band-more { grid-column: 1; }
+
+  .filter-btn { font-size: 0.68rem; padding: 0.2rem 0.5rem; }
+}

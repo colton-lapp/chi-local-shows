@@ -31,16 +31,16 @@ jobs:
       - name: Export data cache
         run: uv run python cache.py export
 
-      - name: Commit data cache
+      - name: Export static HTML
+        run: uv run python export.py
+
+      - name: Commit data cache and generated HTML
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add shows_cache.json
-          git diff --staged --quiet || git commit -m "chore: update shows cache [skip ci]"
+          git add shows_cache.json index.html
+          git diff --staged --quiet || git commit -m "chore: update shows cache and index.html [skip ci]"
           git push
-
-      - name: Export static HTML
-        run: uv run python export.py
 
       - name: Assemble publish directory
         run: |

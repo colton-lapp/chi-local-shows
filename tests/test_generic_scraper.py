@@ -23,9 +23,8 @@ def _llm_response(shows: list) -> MagicMock:
 
 @pytest.fixture
 def mock_fetch():
-    with patch("venue_scrapers.generic.requests.get") as m:
-        m.return_value.text = f"<html><body><p>{_ENOUGH_TEXT}</p></body></html>"
-        m.return_value.raise_for_status.return_value = None
+    with patch("venue_scrapers.generic.browser.fetch_html") as m:
+        m.return_value = f"<html><body><p>{_ENOUGH_TEXT}</p></body></html>"
         yield m
 
 
@@ -48,10 +47,7 @@ def test_filters_out_of_range_dates(mock_fetch, mock_llm):
 
 
 def test_returns_error_on_fetch_failure(mock_llm):
-    with patch("venue_scrapers.generic.requests.get") as m, \
-         patch("venue_scrapers.generic.browser") as br:
-        m.side_effect = Exception("Connection refused")
-        br.is_available.return_value = False
+    with patch("venue_scrapers.generic.browser.fetch_html", side_effect=Exception("Connection refused")):
         results = scrape(VENUE_CONFIG)
     assert len(results) == 1
     assert results[0].scrape_error is not None
@@ -77,9 +73,8 @@ def test_handles_null_bands_field(mock_fetch, mock_llm):
 
 def test_scrape_notes_injected_into_system_prompt(mock_llm):
     config = {**VENUE_CONFIG, "scrape_notes": "Exclude DJ nights please"}
-    with patch("venue_scrapers.generic.requests.get") as m:
-        m.return_value.text = f"<html><body>{_ENOUGH_TEXT}</body></html>"
-        m.return_value.raise_for_status.return_value = None
+    with patch("venue_scrapers.generic.browser.fetch_html") as m:
+        m.return_value = f"<html><body>{_ENOUGH_TEXT}</body></html>"
         mock_llm.return_value = _llm_response([])
         scrape(config, days_ahead=7)
 

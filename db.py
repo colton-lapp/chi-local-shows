@@ -90,7 +90,20 @@ def _migrate(conn: sqlite3.Connection) -> None:
         ("bandcamp_url", "TEXT"),
         ("instagram_url", "TEXT"),
         ("other_urls", "TEXT"),
+        ("bandcamp_album_id", "TEXT"),
     ]
+    # shows table additions
+    existing_shows = {row[1] for row in conn.execute("PRAGMA table_info(shows)").fetchall()}
+    new_show_cols = [
+        ("ticket_price", "TEXT"),
+        ("age_restriction", "TEXT"),
+        ("event_image_url", "TEXT"),
+        ("notes", "TEXT"),
+        ("low_confidence", "INTEGER"),
+    ]
+    for col, typ in new_show_cols:
+        if col not in existing_shows:
+            conn.execute(f"ALTER TABLE shows ADD COLUMN {col} {typ}")
     for col, typ in new_cols:
         if col not in existing:
             conn.execute(f"ALTER TABLE bands ADD COLUMN {col} {typ}")
@@ -140,30 +153,43 @@ def insert_show(
     raw_title: str | None,
     event_url: str | None,
     ticket_url: str | None,
+    ticket_price: str | None = None,
+    age_restriction: str | None = None,
+    event_image_url: str | None = None,
+    notes: str | None = None,
+    low_confidence: bool = False,
     scrape_status: str = "ok",
     scrape_error: str | None = None,
 ) -> int | None:
     """Insert a show. Returns new id, or None if duplicate (idempotent)."""
     with get_conn() as conn:
-        if event_url:
+        # Prefer title+date as the dedup key — event_url is often a venue homepage
+        # shared across many shows (e.g. Empty Bottle) and can't be used as a unique id.
+        if raw_title:
+            existing = conn.execute(
+                "SELECT id FROM shows WHERE venue_id=? AND show_date=? AND raw_title=?",
+                (venue_id, show_date, raw_title),
+            ).fetchone()
+        elif event_url:
             existing = conn.execute(
                 "SELECT id FROM shows WHERE venue_id=? AND event_url=?",
                 (venue_id, event_url),
             ).fetchone()
         else:
-            existing = conn.execute(
-                "SELECT id FROM shows WHERE venue_id=? AND show_date=? AND raw_title=?",
-                (venue_id, show_date, raw_title),
-            ).fetchone()
+            existing = None
 
         if existing:
             return None
 
         cursor = conn.execute(
             """INSERT INTO shows
-               (venue_id, show_date, show_time, raw_title, event_url, ticket_url, scrape_status, scrape_error)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (venue_id, show_date, show_time, raw_title, event_url, ticket_url, scrape_status, scrape_error),
+               (venue_id, show_date, show_time, raw_title, event_url, ticket_url,
+                ticket_price, age_restriction, event_image_url, notes, low_confidence,
+                scrape_status, scrape_error)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (venue_id, show_date, show_time, raw_title, event_url, ticket_url,
+             ticket_price, age_restriction, event_image_url, notes, int(low_confidence),
+             scrape_status, scrape_error),
         )
         return cursor.lastrowid
 
@@ -205,7 +231,7 @@ def update_band_lookup(band_id: int, result: BandResult) -> None:
             """UPDATE bands SET
                spotify_id=?, spotify_url=?, spotify_genres=?,
                spotify_followers=?, spotify_popularity=?, spotify_image_url=?,
-               bandcamp_url=?, instagram_url=?, other_urls=?,
+               bandcamp_url=?, bandcamp_album_id=?, instagram_url=?, other_urls=?,
                google_general_url=?, google_spotify_url=?,
                google_bandcamp_url=?, google_instagram_url=?,
                lookup_status=?, lookup_error=?, looked_up_at=?
@@ -218,6 +244,7 @@ def update_band_lookup(band_id: int, result: BandResult) -> None:
                 result.spotify_popularity,
                 result.spotify_image_url,
                 result.bandcamp_url,
+                result.bandcamp_album_id,
                 result.instagram_url,
                 json.dumps(result.other_urls),
                 result.google_general_url,

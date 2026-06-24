@@ -24,7 +24,7 @@ import db
 import band_lookup
 import venue_scrapers
 
-load_dotenv()
+load_dotenv(override=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -115,6 +115,11 @@ def run(
                 raw_title=show.raw_title,
                 event_url=show.event_url,
                 ticket_url=show.ticket_url,
+                ticket_price=show.ticket_price,
+                age_restriction=show.age_restriction,
+                event_image_url=show.event_image_url,
+                notes=show.notes,
+                low_confidence=show.low_confidence,
             )
             if show_id is None:
                 continue  # duplicate, skip

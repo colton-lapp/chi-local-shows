@@ -1,44 +1,39 @@
 """
 Generic venue scraper: fetch HTML → clean → LLM extraction → list[ShowResult].
 
-Works for most venues with standard HTML event listings.
-For venues with JS-rendered pages or non-standard formats, write a venue-specific
-scraper in its own file and register it in __init__.py.
-
-Fetch strategy:
-  1. requests (fast, works for most static pages)
-  2. If content is suspiciously short (<500 chars), retry with Playwright headless
-     browser which executes JavaScript and waits for network idle.
+Works for most venues. Always uses Playwright headless browser so JS-rendered
+pages work correctly. For venues with fundamentally non-standard structures,
+write a venue-specific scraper in its own file and register it in __init__.py.
 """
 import json
 import logging
 from datetime import date, timedelta
 
 import openai
-import requests
-from bs4 import BeautifulSoup
 
 import browser
 from models import ShowResult
 
 log = logging.getLogger(__name__)
 
-FETCH_TIMEOUT = 15
 MAX_TEXT_CHARS = 20_000
-JS_RENDER_THRESHOLD = 500  # chars below which we suspect JS rendering
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; chi-local-shows/1.0; +https://github.com/colton-lapp/chi-local-shows)"}
 
 SYSTEM_PROMPT_TEMPLATE = """\
 You are a concert data extraction assistant.
 Today is {today}. Extract all live band shows from this venue page that fall between {today} and {end_date} (inclusive).
 
 Return a JSON object with a single key "shows" containing an array. Each element must have exactly these keys:
-  "bands"      - array of artist/band name strings; headliner first, openers after
-  "date"       - "YYYY-MM-DD" string
-  "time"       - time string like "8:00 PM" or "Doors 7PM / Show 8PM", or null
-  "event_url"  - URL for this specific event page, or null
-  "ticket_url" - ticket purchase URL, or null
-  "raw_title"  - original event title text as it appeared on the page
+  "bands"           - array of artist/band name strings; headliner first, openers after
+  "date"            - "YYYY-MM-DD" string
+  "time"            - show start time like "8:00 PM" or "Doors 7PM / Show 8PM", or null
+  "event_url"       - URL for this specific event page, or null
+  "ticket_url"      - ticket purchase URL, or null
+  "ticket_price"    - price string as shown (e.g. "$15", "$12-$15", "Free"), or null
+  "age_restriction" - "21+" or "All Ages" or "18+" if stated, otherwise null
+  "event_image_url" - URL of the event flyer or artwork image (look for [IMAGE:...] annotations near the event listing), or null
+  "raw_title"       - original event title text as it appeared on the page
+  "notes"           - any other notable detail worth surfacing: sold out, record release, special format, etc. One sentence max, or null
+  "low_confidence"  - true if you are uncertain about the date, band name, or whether this qualifies as a live show; false otherwise
 
 Rules:
   - ONLY include live music performances by bands or solo artists.
@@ -56,38 +51,12 @@ Page text:
 {page_text}"""
 
 
-def _clean_html(html: str) -> str:
-    soup = BeautifulSoup(html, "lxml")
-    for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg"]):
-        tag.decompose()
-    return " ".join(soup.get_text(separator=" ").split())[:MAX_TEXT_CHARS]
-
-
 def _fetch_and_clean(url: str) -> str:
-    """
-    Fetch a URL and return cleaned body text.
-    Falls back to Playwright headless browser if the page looks JS-rendered.
-    """
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=FETCH_TIMEOUT)
-        resp.raise_for_status()
-        text = _clean_html(resp.text)
-    except Exception:
-        raise
-
-    if len(text) >= JS_RENDER_THRESHOLD:
-        return text
-
-    log.info(f"  Short content ({len(text)} chars) — retrying with browser")
-    try:
-        if browser.is_available():
-            text = browser.fetch_html(url)
-            log.info(f"  Browser fetch returned {len(text)} chars")
-        else:
-            log.warning("  Playwright not available; install with: task install")
-    except Exception as e:
-        log.warning(f"  Browser fetch failed: {e}")
-
+    """Fetch a URL with Playwright and return cleaned body text."""
+    if not browser.is_available():
+        raise RuntimeError("Playwright not installed — run: task install")
+    text = browser.fetch_html(url)
+    log.debug(f"  Browser fetched {len(text)} chars from {url}")
     return text
 
 
@@ -175,7 +144,12 @@ def scrape(venue_config: dict, days_ahead: int = 7, **kwargs) -> list[ShowResult
                 time=raw_show.get("time"),
                 event_url=raw_show.get("event_url"),
                 ticket_url=raw_show.get("ticket_url"),
+                ticket_price=raw_show.get("ticket_price"),
+                age_restriction=raw_show.get("age_restriction"),
+                event_image_url=raw_show.get("event_image_url"),
                 raw_title=raw_show.get("raw_title"),
+                notes=raw_show.get("notes"),
+                low_confidence=bool(raw_show.get("low_confidence", False)),
             ))
 
         log.debug(f"  Extracted {len([r for r in results if not r.scrape_error])} shows from {url}")

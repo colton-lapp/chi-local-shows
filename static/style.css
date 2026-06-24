@@ -1,0 +1,347 @@
+/* ── Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Base ──────────────────────────────────────────────────── */
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #ebebeb;
+  color: #111;
+  line-height: 1.5;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Header ────────────────────────────────────────────────── */
+header {
+  background: #111;
+  color: #fff;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+header h1 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+header .subtitle {
+  font-size: 0.8rem;
+  color: #888;
+  flex: 1;
+}
+
+#view-toggle {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: transparent;
+  color: #666;
+  cursor: not-allowed;
+  letter-spacing: 0.03em;
+}
+
+/* ── Layout ────────────────────────────────────────────────── */
+main {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+/* ── Day section ───────────────────────────────────────────── */
+.day-section { margin-bottom: 2.5rem; }
+
+.day-label {
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #555;
+  margin-bottom: 0.75rem;
+}
+
+/* ── Show card ─────────────────────────────────────────────── */
+.show-card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.show-header {
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Venue + time: primary row */
+.show-header-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.show-venue {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.show-venue a {
+  color: #111;
+}
+
+.show-venue a:hover {
+  color: #1a5c36;
+  text-decoration: underline;
+}
+
+.show-time {
+  font-size: 0.85rem;
+  color: #888;
+  white-space: nowrap;
+}
+
+/* Show title: secondary line below venue */
+.show-title {
+  font-size: 0.82rem;
+  color: #888;
+  line-height: 1.35;
+}
+
+/* Venue thumbnail in show header */
+.venue-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.venue-thumb-placeholder {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+/* Venue website button */
+.venue-btn {
+  display: inline-block;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #555;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.2rem 0.55rem;
+  transition: background 0.1s;
+}
+.venue-btn:hover {
+  background: #e4e4e4;
+  text-decoration: none;
+}
+
+/* Metadata chips: price, age, confidence */
+.show-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.show-chip {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #555;
+  background: #f0f0f0;
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.show-chip--warn {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+/* LLM notes */
+.show-notes {
+  font-size: 0.78rem;
+  color: #999;
+  font-style: italic;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+/* ── Band cards list ───────────────────────────────────────── */
+.bands-list {
+  padding: 0.85rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Band card ─────────────────────────────────────────────── */
+.band-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0.85rem 0;
+}
+
+.band-card + .band-card {
+  border-top: 1px solid #f0f0f0;
+}
+
+/* ── Band info column (left) ───────────────────────────────── */
+.band-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.band-top-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.band-img {
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.band-img-placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  background: #e8e8e8;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  color: #ccc;
+}
+
+.band-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111;
+  line-height: 1.25;
+}
+
+a.band-name:hover { color: #1a5c36; text-decoration: underline; }
+
+.genre-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.genre-tag {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #2d6a4f;
+  background: #d8f3dc;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.band-meta {
+  font-size: 0.78rem;
+  color: #888;
+}
+
+.band-links {
+  font-size: 0.75rem;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.band-links a {
+  color: #555;
+  background: #f2f2f2;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+
+.band-links a:hover {
+  background: #e0e0e0;
+  text-decoration: none;
+}
+
+/* ── Band embeds column (right) ────────────────────────────── */
+.band-embeds-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.spotify-embed iframe,
+.bandcamp-embed iframe {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+}
+
+/* ── Details / More info ───────────────────────────────────── */
+.band-more {
+  font-size: 0.72rem;
+  color: #aaa;
+  grid-column: 1 / -1;
+}
+
+.band-more summary {
+  cursor: pointer;
+  color: #ccc;
+  user-select: none;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.band-more summary::-webkit-details-marker { display: none; }
+.band-more summary::before { content: "▶"; font-size: 0.55rem; transition: transform 0.15s; }
+details[open] .band-more summary::before { transform: rotate(90deg); }
+
+.band-more-content {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: #f9f9f9;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.band-more-content a { color: #888; }
+.band-more-content a:hover { color: #555; text-decoration: underline; }
+
+/* ── Responsive: stack on narrow screens ───────────────────── */
+@media (max-width: 600px) {
+  .band-card {
+    grid-template-columns: 1fr;
+  }
+  .band-more { grid-column: 1; }
+  header { padding: 0.75rem 1rem; }
+}

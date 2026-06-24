@@ -4,7 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'index.html'
+      - 'app.py'
+      - 'scoring.py'
+      - 'export.py'
+      - 'cache.py'
       - 'static/**'
   workflow_dispatch:
 
@@ -16,6 +19,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Import data cache
+        run: |
+          if [ -f shows_cache.json ]; then
+            uv run python cache.py import
+          else
+            echo "No cache found — run the fetch workflow first" && exit 1
+          fi
+
+      - name: Regenerate HTML
+        run: uv run python export.py
 
       - name: Prepare publish directory
         run: |

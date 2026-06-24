@@ -9,7 +9,12 @@ class ShowResult:
     time: str | None = None
     event_url: str | None = None
     ticket_url: str | None = None
+    ticket_price: str | None = None
+    age_restriction: str | None = None
+    event_image_url: str | None = None
     raw_title: str | None = None
+    notes: str | None = None
+    low_confidence: bool = False
     scrape_error: str | None = None  # set if this result represents a partial/failed scrape
 
 
@@ -26,6 +31,7 @@ class BandResult:
     spotify_image_url: str | None = None
     # Social/streaming URLs found via search — None if not found
     bandcamp_url: str | None = None
+    bandcamp_album_id: str | None = None  # numeric album ID for embed iframe
     instagram_url: str | None = None
     other_urls: list[str] = field(default_factory=list)  # top 5 other search result URLs
     # Google search URLs — always constructed, even on lookup failure

@@ -7,6 +7,11 @@ tasks:
       - uv sync --group dev
       - uv run playwright install chromium
 
+  view:
+    desc: Open local web viewer at http://127.0.0.1:8000
+    cmds:
+      - uv run python app.py
+
   fetch:
     desc: "Fetch shows — pass args directly: task fetch -- --venue 'Empty Bottle' --days 14"
     cmds:

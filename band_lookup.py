@@ -14,15 +14,18 @@ Google search URLs are always constructed as a manual fallback regardless of out
 import logging
 import re
 import time
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus, urljoin, urlparse
 
+import requests
 import spotipy
+from bs4 import BeautifulSoup
 
 from models import BandResult
 
 log = logging.getLogger(__name__)
 
-DDGS_SLEEP = 1.5
+DDGS_SLEEP = 1.0
+_SCRAPE_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; chi-local-shows/1.0)"}
 
 # Domains excluded from other_urls (pure search/utility noise)
 _EXCLUDE_DOMAINS = {"google.com", "bing.com", "duckduckgo.com", "yahoo.com"}
@@ -37,6 +40,43 @@ def build_google_urls(band_name: str) -> dict:
         "google_bandcamp_url": f"https://www.google.com/search?q={q}+site:bandcamp.com",
         "google_instagram_url": f"https://www.google.com/search?q={q}+site:instagram.com",
     }
+
+
+def scrape_bandcamp_album_id(bandcamp_url: str) -> str | None:
+    """
+    Fetch a Bandcamp artist page and return the numeric album ID of the most
+    recent release, suitable for use in the EmbeddedPlayer iframe URL.
+    Returns None on any failure.
+    """
+    try:
+        # Try /music listing page first — it reliably shows all releases
+        base = bandcamp_url.rstrip("/")
+        for url in [base + "/music", base]:
+            resp = requests.get(url, headers=_SCRAPE_HEADERS, timeout=10)
+            if resp.ok:
+                break
+        else:
+            return None
+
+        soup = BeautifulSoup(resp.text, "lxml")
+
+        # Find the first album or track link on the page
+        link = soup.select_one('a[href*="/album/"], a[href*="/track/"]')
+        if not link:
+            return None
+
+        item_url = urljoin(base, link["href"])
+        resp2 = requests.get(item_url, headers=_SCRAPE_HEADERS, timeout=10)
+        if not resp2.ok:
+            return None
+
+        # Bandcamp bakes the numeric ID into every album/track page as a large int
+        match = re.search(r'"id"\s*:\s*(\d{6,})', resp2.text)
+        return match.group(1) if match else None
+
+    except Exception as e:
+        log.debug(f"Bandcamp scrape failed for {bandcamp_url}: {e}")
+        return None
 
 
 def _extract_spotify_artist_id(url: str) -> str | None:
@@ -54,7 +94,7 @@ def _domain(url: str) -> str:
 def _ddg_search(query: str, num_results: int = 15) -> list[dict]:
     """Run a DuckDuckGo text search. Returns [] on any error."""
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
         with DDGS() as ddgs:
             return list(ddgs.text(query, max_results=num_results))
     except Exception as e:
@@ -93,13 +133,13 @@ def find_band_urls_via_ddg(band_name: str) -> dict:
     If no Spotify URL surfaces, retries with a targeted Spotify-specific query.
     Returns {spotify_url, instagram_url, bandcamp_url, other_urls}.
     """
-    results = _ddg_search(f'"{band_name}" chicago', num_results=15)
+    results = _ddg_search(f'"{band_name}" chicago', num_results=8)
     time.sleep(DDGS_SLEEP)
     found = _classify_results(results)
 
     # Targeted Spotify retry if broad search missed it
     if not found["spotify_url"]:
-        sp_results = _ddg_search(f"{band_name} site:open.spotify.com/artist", num_results=5)
+        sp_results = _ddg_search(f"{band_name} site:open.spotify.com/artist", num_results=3)
         time.sleep(DDGS_SLEEP)
         for r in sp_results:
             url = r.get("href", "")
@@ -110,11 +150,30 @@ def find_band_urls_via_ddg(band_name: str) -> dict:
     return found
 
 
+FOLLOWER_CAP_PARTIAL = 200_000  # reject partial-name Spotify matches above this
+
+
+def _names_roughly_match(a: str, b: str) -> bool:
+    """True if two artist names are plausibly the same act."""
+    a, b = a.lower().strip(), b.lower().strip()
+    if a == b:
+        return True
+    # Substring containment covers "The Curls" ↔ "Curls Ultra" type partials
+    if a in b or b in a:
+        return True
+    # Any meaningful word overlap (skip stop words)
+    stop = {"the", "a", "an", "and", "&"}
+    words_a = set(a.split()) - stop
+    words_b = set(b.split()) - stop
+    return bool(words_a & words_b)
+
+
 def get_artist_data_from_spotify(artist_id: str, sp: spotipy.Spotify) -> dict | None:
     """Fetch artist data from Spotify API using a known artist ID."""
     try:
         artist = sp.artist(artist_id)
         return {
+            "_name": artist["name"],  # used for validation before storing
             "spotify_id": artist["id"],
             "spotify_url": artist["external_urls"]["spotify"],
             "spotify_genres": artist.get("genres", []),
@@ -130,7 +189,8 @@ def get_artist_data_from_spotify(artist_id: str, sp: spotipy.Spotify) -> dict | 
 def lookup_spotify_direct(band_name: str, sp: spotipy.Spotify) -> dict | None:
     """
     Fallback: search Spotify API directly by artist name.
-    Applies a loose name-match confidence check to avoid wrong-artist matches.
+    Rejects partial-name matches with very high follower counts — those are
+    almost always mainstream artists sharing a name with a small local act.
     """
     try:
         results = sp.search(q=f"artist:{band_name}", type="artist", limit=5)
@@ -153,20 +213,28 @@ def lookup_spotify_direct(band_name: str, sp: spotipy.Spotify) -> dict | None:
             best = artist
 
     if best is None:
-        log.debug(f"No confident Spotify match for '{band_name}' (top result: '{items[0]['name']}')")
+        log.debug(f"No confident Spotify match for '{band_name}' (top: '{items[0]['name']}')")
+        return None
+
+    followers = best.get("followers", {}).get("total", 0)
+    is_exact = best["name"].lower().strip() == band_lower
+    if not is_exact and followers > FOLLOWER_CAP_PARTIAL:
+        log.debug(f"  Rejecting '{best['name']}' ({followers:,} followers) as likely wrong match for '{band_name}'")
         return None
 
     return {
+        "_name": best["name"],
         "spotify_id": best["id"],
         "spotify_url": best["external_urls"]["spotify"],
         "spotify_genres": best.get("genres", []),
-        "spotify_followers": best["followers"]["total"],
+        "spotify_followers": followers,
         "spotify_popularity": best["popularity"],
         "spotify_image_url": best["images"][0]["url"] if best.get("images") else None,
     }
 
 
 def _apply_spotify_data(result: BandResult, data: dict) -> BandResult:
+    data.pop("_name", None)
     result.spotify_id = data["spotify_id"]
     result.spotify_url = data["spotify_url"]
     result.spotify_genres = data["spotify_genres"]
@@ -195,6 +263,10 @@ def lookup_band(band_name: str, sp) -> BandResult:
     result.other_urls = ddg["other_urls"]
     spotify_url = ddg["spotify_url"]
 
+    if result.bandcamp_url:
+        result.bandcamp_album_id = scrape_bandcamp_album_id(result.bandcamp_url)
+        log.debug(f"  Bandcamp album ID for '{band_name}': {result.bandcamp_album_id}")
+
     # Step 2: Browser Bing search if DDG found no Spotify URL
     if not spotify_url:
         try:
@@ -211,7 +283,13 @@ def lookup_band(band_name: str, sp) -> BandResult:
         if artist_id and sp:
             data = get_artist_data_from_spotify(artist_id, sp)
             if data:
-                return _apply_spotify_data(result, data)
+                fetched_name = data.get("_name", "")
+                followers = data.get("spotify_followers", 0) or 0
+                if followers > FOLLOWER_CAP_PARTIAL and not _names_roughly_match(band_name, fetched_name):
+                    log.debug(f"  Rejecting DDG Spotify match '{fetched_name}' ({followers:,} followers) for '{band_name}'")
+                    spotify_url = None  # fall through to direct API search
+                else:
+                    return _apply_spotify_data(result, data)
         elif not sp:
             result.spotify_url = spotify_url
             result.spotify_id = _extract_spotify_artist_id(spotify_url)

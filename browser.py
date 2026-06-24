@@ -29,6 +29,14 @@ def _clean_html(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
     for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg"]):
         tag.decompose()
+    # Preserve image URLs as inline annotations so the LLM can associate
+    # event flyer/artwork images with the correct show entries.
+    for img in soup.find_all("img"):
+        src = img.get("src") or img.get("data-src") or ""
+        if src.startswith("http"):
+            img.replace_with(f" [IMAGE:{src}] ")
+        else:
+            img.decompose()
     return " ".join(soup.get_text(separator=" ").split())[:MAX_TEXT_CHARS]
 
 

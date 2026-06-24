@@ -10,7 +10,7 @@ dependencies = [
     "spotipy",
     "openai",
     "python-dotenv",
-    "duckduckgo-search",
+    "ddgs",
     "playwright",
 ]
 

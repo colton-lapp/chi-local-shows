@@ -5,7 +5,8 @@
     "description": "Beloved indie/punk/experimental dive in Ukrainian Village",
     "active": true,
     "event_urls": ["https://www.emptybottle.com/"],
-    "scrape_notes": ""
+    "scrape_notes": "",
+    "image_url": ""
   },
   {
     "name": "Schubas Tavern",
@@ -13,7 +14,8 @@
     "description": "Intimate Lakeview venue with strong indie and singer-songwriter bookings",
     "active": true,
     "event_urls": ["https://lh-st.com/"],
-    "scrape_notes": ""
+    "scrape_notes": "",
+    "image_url": ""
   },
   {
     "name": "Lincoln Hall",
@@ -21,7 +23,8 @@
     "description": "Mid-size Lincoln Park venue, quality indie and rock bookings",
     "active": true,
     "event_urls": ["https://lh-st.com/"],
-    "scrape_notes": ""
+    "scrape_notes": "",
+    "image_url": ""
   },
   {
     "name": "The Hideout",
@@ -29,7 +32,8 @@
     "description": "Scrappy neighborhood bar with indie, country, and punk bookings",
     "active": true,
     "event_urls": ["https://www.hideoutchicago.com/shows"],
-    "scrape_notes": ""
+    "scrape_notes": "",
+    "image_url": ""
   },
   {
     "name": "Sleeping Village",
@@ -37,7 +41,8 @@
     "description": "Avondale venue for underground, experimental, and indie shows",
     "active": true,
     "event_urls": ["https://sleeping-village.com/events/"],
-    "scrape_notes": ""
+    "scrape_notes": "",
+    "image_url": ""
   },
   {
     "name": "Subterranean",
@@ -45,7 +50,8 @@
     "description": "Wicker Park multi-level venue with indie, metal, and hip-hop",
     "active": true,
     "event_urls": ["https://subt.net/subterranean/"],
-    "scrape_notes": ""
+    "scrape_notes": "",
+    "image_url": ""
   },
   {
     "name": "Beat Kitchen",
@@ -53,6 +59,61 @@
     "description": "Roscoe Village club with eclectic indie and rock bookings",
     "active": true,
     "event_urls": ["https://beatkitchen.com/"],
-    "scrape_notes": "Ignore comedy shows. Pop up may appear on page that might need to be clicked out of."
+    "scrape_notes": "Ignore comedy shows. Pop up may appear on page that might need to be clicked out of.",
+    "image_url": ""
+  },
+  {
+    "name": "Burlington Bar",
+    "address": "3425 W. Fullerton Ave. Chicago, IL 60647",
+    "description": "",
+    "active": true,
+    "event_urls": ["https://www.theburlingtonbar.com/"],
+    "scrape_notes": "",
+    "image_url": ""
+  },
+  {
+    "name": "Gman Tavern",
+    "address": "3740 N Clark St, Chicago, IL 60613",
+    "description": "",
+    "active": true,
+    "event_urls": ["https://gmantavern.com/events/"],
+    "scrape_notes": "",
+    "image_url": ""
+  },
+  {
+    "name": "Reeds Local",
+    "address": "",
+    "description": "",
+    "active": true,
+    "event_urls": ["https://reedslocal.com/events/"],
+    "scrape_notes": "",
+    "image_url": ""
+  },
+  {
+    "name": "Cole's Bar",
+    "address": "",
+    "description": "",
+    "active": true,
+    "event_urls": ["https://colesbarchicago.com/"],
+    "scrape_notes": "",
+    "image_url": "https://lh3.googleusercontent.com/gps-cs-s/APNQkAHBUojGCtZ_lKoUWLuIEwc27kfffOIxT_41i7fp7WTLpXI5Gezgns-UWJhcSesa-VMUFlJTiyUjHJwaOE1_crcetIUiPnISu3QSFQcgecqakMmn6U95KdtUOXtwVrosthoj9Sc=w289-h312-n-k-no"
+  },
+  {
+    "name": "Cafe Mustache",
+    "address": "",
+    "description": "",
+    "active": true,
+    "event_urls": ["https://cafemustache.com/"],
+    "scrape_notes": "",
+    "image_url": ""
+  },
+  {
+    "name": "Reggies",
+    "address": "",
+    "description": "",
+    "active": true,
+    "event_urls": ["https://www.reggieslive.com/"],
+    "scrape_notes": "",
+    "image_url": ""
   }
 ]

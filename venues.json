@@ -6,7 +6,7 @@
     "active": true,
     "event_urls": ["https://www.emptybottle.com/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://images.squarespace-cdn.com/content/v1/5486852ae4b00adc4f6f0ab6/1511906096406-0OSRWHSXIVD0MLRXVVXS/empty-bottle-landmark.jpg"
   },
   {
     "name": "Schubas Tavern",
@@ -15,22 +15,22 @@
     "active": true,
     "event_urls": ["https://lh-st.com/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://photos.bandsintown.com/thumb/11027630.jpeg"
   },
   {
     "name": "Lincoln Hall",
     "address": "2424 N Lincoln Ave, Chicago, IL 60614",
     "description": "Mid-size Lincoln Park venue, quality indie and rock bookings",
-    "active": true,
+    "active": false,
     "event_urls": ["https://lh-st.com/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://cloudinary-assets.dostuffmedia.com/res/dostuff-media/image/upload/venue-7429/1493843568.jpg"
   },
   {
     "name": "The Hideout",
     "address": "1354 W Wabansia Ave, Chicago, IL 60642",
     "description": "Scrappy neighborhood bar with indie, country, and punk bookings",
-    "active": true,
+    "active": false,
     "event_urls": ["https://www.hideoutchicago.com/shows"],
     "scrape_notes": "",
     "image_url": ""
@@ -39,10 +39,10 @@
     "name": "Sleeping Village",
     "address": "3734 W Belmont Ave, Chicago, IL 60618",
     "description": "Avondale venue for underground, experimental, and indie shows",
-    "active": true,
+    "active": false,
     "event_urls": ["https://sleeping-village.com/events/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR0mv5nddvSNRA1aVgQUzeRDGEiWu0hVdYdCA9WE_Dy2V6wCl6JnEMJL6h7&s=10"
   },
   {
     "name": "Subterranean",
@@ -51,7 +51,7 @@
     "active": true,
     "event_urls": ["https://subt.net/subterranean/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://static.where-e.com/United_States/Subterranean_3206cab05f351f365c8440634edf7439.jpg"
   },
   {
     "name": "Beat Kitchen",
@@ -60,7 +60,7 @@
     "active": true,
     "event_urls": ["https://beatkitchen.com/"],
     "scrape_notes": "Ignore comedy shows. Pop up may appear on page that might need to be clicked out of.",
-    "image_url": ""
+    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQwb6kw8sNqiPPWN3Utc3y5HVppGz-L1fg7OwWqgSQunxK6IJndeSZIlyo&s=10"
   },
   {
     "name": "Burlington Bar",
@@ -69,7 +69,7 @@
     "active": true,
     "event_urls": ["https://www.theburlingtonbar.com/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://www.indieonthemove.com/resize/burlingtonimages.jpg"
   },
   {
     "name": "Gman Tavern",
@@ -78,7 +78,7 @@
     "active": true,
     "event_urls": ["https://gmantavern.com/events/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQBg946LG5iAbBY2imRD7hutOhK2gNQinYDq3QrDCHlMjumBOO-M17jTTE&s=10"
   },
   {
     "name": "Reeds Local",
@@ -87,7 +87,7 @@
     "active": true,
     "event_urls": ["https://reedslocal.com/events/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHcmwIXBhIm3v83ld9e_cDE6zyleHuC3bXIYTrpLIPPGtDr2UlmuWjuqvA&s=10"
   },
   {
     "name": "Cole's Bar",
@@ -96,7 +96,7 @@
     "active": true,
     "event_urls": ["https://colesbarchicago.com/"],
     "scrape_notes": "",
-    "image_url": "https://lh3.googleusercontent.com/gps-cs-s/APNQkAHBUojGCtZ_lKoUWLuIEwc27kfffOIxT_41i7fp7WTLpXI5Gezgns-UWJhcSesa-VMUFlJTiyUjHJwaOE1_crcetIUiPnISu3QSFQcgecqakMmn6U95KdtUOXtwVrosthoj9Sc=w289-h312-n-k-no"
+    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmBHbDs2areUnkxwT21JB2QbS2_Voqvg_8XgClQ6M787c7Sb2keLteDbJ2&s=10"
   },
   {
     "name": "Cafe Mustache",
@@ -105,7 +105,7 @@
     "active": true,
     "event_urls": ["https://cafemustache.com/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://s3-media0.fl.yelpcdn.com/bphoto/5vMaS0bY-KejR-pzkmsv-Q/348s.jpg"
   },
   {
     "name": "Reggies",
@@ -114,6 +114,6 @@
     "active": true,
     "event_urls": ["https://www.reggieslive.com/"],
     "scrape_notes": "",
-    "image_url": ""
+    "image_url": "https://assets.simpleviewinc.com/simpleview/image/upload/c_fill,w_1800,h_800/crm/chicago/39236-reggies-1-hero0_8a63bca3-5056-a36f-23ba7916e153f89c.jpg"
   }
 ]

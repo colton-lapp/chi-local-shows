@@ -11,6 +11,7 @@ Search strategy (in order):
 
 Google search URLs are always constructed as a manual fallback regardless of outcome.
 """
+import difflib
 import logging
 import re
 import time
@@ -150,28 +151,49 @@ def find_band_urls_via_ddg(band_name: str) -> dict:
     return found
 
 
-FOLLOWER_CAP_PARTIAL = 200_000  # reject partial-name Spotify matches above this
+FOLLOWER_CAP_PARTIAL = 200_000  # reject non-exact Spotify matches above this
+_MATCH_THRESHOLD = 0.95  # minimum SequenceMatcher ratio for a valid name match
+
+
+def _normalize_name(name: str) -> str:
+    """Lowercase, strip, remove leading 'the ' for fairer comparison."""
+    name = name.lower().strip()
+    if name.startswith("the "):
+        name = name[4:]
+    return name
 
 
 def _names_roughly_match(a: str, b: str) -> bool:
-    """True if two artist names are plausibly the same act."""
-    a, b = a.lower().strip(), b.lower().strip()
-    if a == b:
+    """True if two artist names are ≥95% similar after basic normalization."""
+    a_n, b_n = _normalize_name(a), _normalize_name(b)
+    if a_n == b_n:
         return True
-    # Substring containment covers "The Curls" ↔ "Curls Ultra" type partials
-    if a in b or b in a:
-        return True
-    # Any meaningful word overlap (skip stop words)
-    stop = {"the", "a", "an", "and", "&"}
-    words_a = set(a.split()) - stop
-    words_b = set(b.split()) - stop
-    return bool(words_a & words_b)
+    return difflib.SequenceMatcher(None, a_n, b_n).ratio() >= _MATCH_THRESHOLD
 
 
 def get_artist_data_from_spotify(artist_id: str, sp: spotipy.Spotify) -> dict | None:
     """Fetch artist data from Spotify API using a known artist ID."""
     try:
         artist = sp.artist(artist_id)
+
+        # Fetch album/single release stats
+        track_count = None
+        first_release = None
+        last_release = None
+        try:
+            albums_resp = sp.artist_albums(artist_id, album_type="album,single", limit=50)
+            items = albums_resp.get("items", [])
+            if items:
+                dates = [a["release_date"] for a in items if a.get("release_date")]
+                total = sum(a.get("total_tracks", 0) for a in items)
+                if dates:
+                    first_release = min(dates)
+                    last_release = max(dates)
+                if total > 0:
+                    track_count = total
+        except Exception as e:
+            log.debug(f"Spotify album fetch failed for artist '{artist_id}': {e}")
+
         return {
             "_name": artist["name"],  # used for validation before storing
             "spotify_id": artist["id"],
@@ -180,6 +202,9 @@ def get_artist_data_from_spotify(artist_id: str, sp: spotipy.Spotify) -> dict | 
             "spotify_followers": artist["followers"]["total"],
             "spotify_popularity": artist["popularity"],
             "spotify_image_url": artist["images"][0]["url"] if artist.get("images") else None,
+            "spotify_track_count": track_count,
+            "spotify_first_release": first_release,
+            "spotify_last_release": last_release,
         }
     except Exception as e:
         log.debug(f"Spotify artist fetch failed for ID '{artist_id}': {e}")
@@ -189,8 +214,7 @@ def get_artist_data_from_spotify(artist_id: str, sp: spotipy.Spotify) -> dict | 
 def lookup_spotify_direct(band_name: str, sp: spotipy.Spotify) -> dict | None:
     """
     Fallback: search Spotify API directly by artist name.
-    Rejects partial-name matches with very high follower counts — those are
-    almost always mainstream artists sharing a name with a small local act.
+    Requires ≥95% name similarity. Rejects non-exact matches above FOLLOWER_CAP_PARTIAL.
     """
     try:
         results = sp.search(q=f"artist:{band_name}", type="artist", limit=5)
@@ -202,14 +226,14 @@ def lookup_spotify_direct(band_name: str, sp: spotipy.Spotify) -> dict | None:
     if not items:
         return None
 
-    band_lower = band_name.lower().strip()
+    band_norm = _normalize_name(band_name)
     best = None
     for artist in items:
-        a_lower = artist["name"].lower().strip()
-        if a_lower == band_lower:
+        a_norm = _normalize_name(artist["name"])
+        if a_norm == band_norm:
             best = artist
             break
-        if a_lower in band_lower or band_lower in a_lower:
+        if difflib.SequenceMatcher(None, a_norm, band_norm).ratio() >= _MATCH_THRESHOLD:
             best = artist
 
     if best is None:
@@ -217,20 +241,13 @@ def lookup_spotify_direct(band_name: str, sp: spotipy.Spotify) -> dict | None:
         return None
 
     followers = best.get("followers", {}).get("total", 0)
-    is_exact = best["name"].lower().strip() == band_lower
+    is_exact = _normalize_name(best["name"]) == band_norm
     if not is_exact and followers > FOLLOWER_CAP_PARTIAL:
         log.debug(f"  Rejecting '{best['name']}' ({followers:,} followers) as likely wrong match for '{band_name}'")
         return None
 
-    return {
-        "_name": best["name"],
-        "spotify_id": best["id"],
-        "spotify_url": best["external_urls"]["spotify"],
-        "spotify_genres": best.get("genres", []),
-        "spotify_followers": followers,
-        "spotify_popularity": best["popularity"],
-        "spotify_image_url": best["images"][0]["url"] if best.get("images") else None,
-    }
+    # Reuse get_artist_data_from_spotify to also capture album stats
+    return get_artist_data_from_spotify(best["id"], sp)
 
 
 def _apply_spotify_data(result: BandResult, data: dict) -> BandResult:
@@ -241,6 +258,9 @@ def _apply_spotify_data(result: BandResult, data: dict) -> BandResult:
     result.spotify_followers = data["spotify_followers"]
     result.spotify_popularity = data["spotify_popularity"]
     result.spotify_image_url = data["spotify_image_url"]
+    result.spotify_track_count = data.get("spotify_track_count")
+    result.spotify_first_release = data.get("spotify_first_release")
+    result.spotify_last_release = data.get("spotify_last_release")
     result.lookup_status = "done"
     return result
 

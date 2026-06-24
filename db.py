@@ -91,6 +91,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         ("instagram_url", "TEXT"),
         ("other_urls", "TEXT"),
         ("bandcamp_album_id", "TEXT"),
+        ("spotify_track_count", "INTEGER"),
+        ("spotify_first_release", "TEXT"),
+        ("spotify_last_release", "TEXT"),
     ]
     # shows table additions
     existing_shows = {row[1] for row in conn.execute("PRAGMA table_info(shows)").fetchall()}
@@ -231,6 +234,7 @@ def update_band_lookup(band_id: int, result: BandResult) -> None:
             """UPDATE bands SET
                spotify_id=?, spotify_url=?, spotify_genres=?,
                spotify_followers=?, spotify_popularity=?, spotify_image_url=?,
+               spotify_track_count=?, spotify_first_release=?, spotify_last_release=?,
                bandcamp_url=?, bandcamp_album_id=?, instagram_url=?, other_urls=?,
                google_general_url=?, google_spotify_url=?,
                google_bandcamp_url=?, google_instagram_url=?,
@@ -243,6 +247,9 @@ def update_band_lookup(band_id: int, result: BandResult) -> None:
                 result.spotify_followers,
                 result.spotify_popularity,
                 result.spotify_image_url,
+                result.spotify_track_count,
+                result.spotify_first_release,
+                result.spotify_last_release,
                 result.bandcamp_url,
                 result.bandcamp_album_id,
                 result.instagram_url,

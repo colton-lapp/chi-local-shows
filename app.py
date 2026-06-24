@@ -35,10 +35,10 @@ def _fmt_followers(n) -> str:
     if not n:
         return ""
     if n >= 1_000_000:
-        return f"{n/1_000_000:.1f}M followers"
+        return f"{n/1_000_000:.1f}M Spotify followers"
     if n >= 1_000:
-        return f"{n/1_000:.1f}k followers"
-    return f"{n} followers"
+        return f"{n/1_000:.1f}k Spotify followers"
+    return f"{n} Spotify followers"
 
 
 def _esc(s) -> str:
@@ -76,17 +76,42 @@ def _render_band_card(b) -> str:
         try:
             genres = json.loads(genres_raw)
             if genres:
-                chips = "".join(
-                    f'<span class="genre-tag">{_esc(g)}</span>' for g in genres[:4]
+                genre_text = ", ".join(_esc(g) for g in genres[:4])
+                genre_chips = (
+                    f'<div class="genre-tags">'
+                    f'<span class="genre-label">Genres:</span> '
+                    f'<span class="genre-list">{genre_text}</span>'
+                    f'</div>'
                 )
-                genre_chips = f'<div class="genre-tags">{chips}</div>'
         except (ValueError, TypeError):
             pass
 
     followers = _fmt_followers(b["spotify_followers"])
+    meta_parts = []
+    if followers:
+        meta_parts.append(f'<span class="followers-count">{_esc(followers)}</span>')
+
+    # Extra Spotify stats (track count + release year range)
+    try:
+        track_count = b["spotify_track_count"]
+        first_rel = b["spotify_first_release"]
+        last_rel = b["spotify_last_release"]
+        stat_parts = []
+        if track_count:
+            stat_parts.append(f"{track_count} tracks")
+        if first_rel and last_rel:
+            yr1, yr2 = first_rel[:4], last_rel[:4]
+            stat_parts.append(f"{yr1}–{yr2}" if yr1 != yr2 else f"since {yr1}")
+        elif first_rel:
+            stat_parts.append(f"since {first_rel[:4]}")
+        if stat_parts:
+            meta_parts.append(f'<span class="spotify-stats">{" · ".join(stat_parts)}</span>')
+    except (IndexError, KeyError):
+        pass
+
     meta_html = (
-        f'<div class="band-meta"><span class="followers-count">{_esc(followers)}</span></div>'
-        if followers else ""
+        f'<div class="band-meta">{"".join(meta_parts)}</div>'
+        if meta_parts else ""
     )
 
     links = []
@@ -140,29 +165,9 @@ def _render_band_card(b) -> str:
 
     embeds_col = f'<div class="band-embeds-col">{"".join(embeds)}</div>'
 
-    # ── More info expand ─────────────────────────────────────
-    more_items = []
-    if popularity is not None:
-        more_items.append(f'<span>Spotify popularity: {popularity}/100</span>')
-    if other_urls_raw:
-        try:
-            for url in json.loads(other_urls_raw)[:3]:
-                more_items.append(f'<a href="{_esc(url)}" target="_blank">{_esc(url)}</a>')
-        except (ValueError, TypeError):
-            pass
-
-    more_html = ""
-    if more_items:
-        items_html = "".join(f"<div>{item}</div>" for item in more_items)
-        more_html = (
-            f'<details class="band-more"><summary>More info</summary>'
-            f'<div class="band-more-content">{items_html}</div></details>'
-        )
-
     return f"""<div class="band-card">
     {info_col}
     {embeds_col}
-    {more_html}
   </div>"""
 
 
@@ -185,12 +190,7 @@ def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) 
     )
 
     venue_html = f'<a href="{_esc(event_url)}" target="_blank">{venue}</a>' if event_url else venue
-    time_html = f'<span class="show-time">{_esc(show["show_time"])}</span>' if show["show_time"] else ""
-    venue_row = (
-        f'<div class="show-header-main">'
-        f'{venue_img_html}<span class="show-venue">{venue_html}</span>{time_html}'
-        f'</div>'
-    )
+    venue_line = f'<div class="show-venue-line"><span class="show-venue">{venue_html}</span></div>'
 
     venue_btn_html = ""
     if venue_homepage:
@@ -199,6 +199,20 @@ def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) 
         )
 
     title_html = f'<div class="show-title">{_esc(raw_title)}</div>' if raw_title else ""
+
+    # Time + date stacked under show name
+    time_str = show["show_time"] or ""
+    try:
+        date_str = date.fromisoformat(show_date).strftime("%B %-d, %Y") if show_date else ""
+    except (ValueError, AttributeError):
+        date_str = show_date or ""
+    time_html = f'<span class="show-time">{_esc(time_str)}</span>' if time_str else ""
+    date_small_html = f'<span class="show-date-small">{_esc(date_str)}</span>' if date_str else ""
+    time_date_parts = [p for p in [time_html, date_small_html] if p]
+    time_date_html = (
+        f'<div class="show-time-date">{"".join(time_date_parts)}</div>'
+        if time_date_parts else ""
+    )
 
     meta_chips = []
     if show["ticket_price"]:
@@ -220,6 +234,23 @@ def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) 
             f'<div class="score-badge">⭐ Recommended — {_esc(reasons_text)}</div>'
         )
 
+    # Show main column: title (prominent) → time/date → chips
+    show_main_col = (
+        f'<div class="show-main-col">'
+        f'{venue_line}'
+        f'{title_html}'
+        f'{time_date_html}'
+        f'{meta_row}'
+        f'</div>'
+    )
+
+    show_layout = (
+        f'<div class="show-layout">'
+        f'<div class="show-venue-col">{venue_img_html}</div>'
+        f'{show_main_col}'
+        f'</div>'
+    )
+
     if bands:
         bands_html = "".join(_render_band_card(b) for b in bands)
     else:
@@ -237,11 +268,9 @@ def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) 
         f'data-date="{_esc(show_date)}" data-venue="{_esc(venue_name)}">\n'
         f'  <div class="show-header">\n'
         f'    {badge_html}\n'
-        f'    {venue_row}\n'
-        f'    {venue_btn_html}\n'
-        f'    {title_html}\n'
-        f'    {meta_row}\n'
+        f'    {show_layout}\n'
         f'    {notes_html}\n'
+        f'    {venue_btn_html}\n'
         f'  </div>\n'
         f'  <div class="bands-list">{bands_html}</div>\n'
         f'</div>'
@@ -257,7 +286,8 @@ def _render_day_section(label: str, cards: list[str], date_iso: str) -> str:
     )
 
 
-def _render_page(content: str, today: date, static_root: str = "/static") -> str:
+def _render_page(content: str, today: date, end_date: date, static_root: str = "/static") -> str:
+    subtitle = f'{today.strftime("%B %-d")} &ndash; {end_date.strftime("%B %-d, %Y")}'
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -270,7 +300,7 @@ def _render_page(content: str, today: date, static_root: str = "/static") -> str
   <header>
     <div class="header-top">
       <h1>Chi Local Shows</h1>
-      <span class="subtitle">Next {DAYS} days &mdash; {today.strftime("%B %-d, %Y")}</span>
+      <span class="subtitle">{subtitle}</span>
     </div>
     <div id="filters"></div>
   </header>
@@ -304,9 +334,12 @@ def _build_html(static_root: str = "/static") -> str:
     body = (
         "".join(sections)
         if sections
-        else "<p style='padding:2rem;color:#999'>No shows in the next 14 days.</p>"
+        else (
+            f"<p style='padding:2rem;color:#999'>No shows between "
+            f"{today.strftime('%B %-d')} and {end.strftime('%B %-d, %Y')}.</p>"
+        )
     )
-    return _render_page(body, today, static_root)
+    return _render_page(body, today, end, static_root)
 
 
 # ── HTTP handler ──────────────────────────────────────────────────────────────

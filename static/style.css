@@ -226,10 +226,11 @@ main {
 }
 .venue-btn:hover { background: #e4e4e4; text-decoration: none; }
 
-.show-chips {
+.show-chips-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  align-items: center;
+  gap: 0.35rem;
   margin-top: 0.35rem;
 }
 
@@ -374,14 +375,11 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
 }
 
 /* ── Badges ────────────────────────────────────────────────── */
-.show-badges,
 .band-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
 }
-
-.show-badges { margin-top: 0.35rem; }
 
 .show-badge,
 .band-badge {
@@ -394,6 +392,13 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
   padding: 0.12rem 0.55rem;
   white-space: nowrap;
   cursor: help;
+}
+
+/* Show-level badges (established/rising/free) sit in the chips row, so they
+   should read a bit larger/bolder than the per-band badges next to them. */
+.show-badge {
+  font-size: 0.78rem;
+  padding: 0.18rem 0.7rem;
 }
 
 .badge-legend {
@@ -565,10 +570,9 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
   .show-title { font-size: 1.25rem; }
 
   .show-time-date { gap: 0.35rem; }
-  .show-chips { gap: 0.25rem; margin-top: 0.45rem; }
+  .show-chips-row { gap: 0.3rem; margin-top: 0.45rem; }
   .genre-tags { gap: 0.3rem; }
   .band-meta { gap: 0.5rem; }
-  .show-badges,
   .band-badges { gap: 0.4rem; }
 
   .band-card {

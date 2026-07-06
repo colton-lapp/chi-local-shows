@@ -2,6 +2,7 @@ from band_lookup import (
     build_google_urls,
     _extract_spotify_artist_id,
     _classify_results,
+    _match_score,
     lookup_band,
 )
 
@@ -91,6 +92,40 @@ def test_classify_results_empty():
     assert found == {"spotify_url": None, "instagram_url": None, "bandcamp_url": None, "other_urls": []}
 
 
+# ── _match_score ──────────────────────────────────────────────────────────────
+
+def test_match_score_exact_name_low_followers_accepted():
+    score = _match_score("Deeper", "Deeper", followers=1200, genres=["post-punk"])
+    assert score >= 2
+
+
+def test_match_score_rejects_substring_match():
+    """A search result whose name merely contains the query (or vice versa)
+    should never be treated as a match — this is the 'Yucki' vs 'Yucki Gross'
+    and 'Halo' vs 'Southern Halo' false-positive pattern."""
+    assert _match_score("Yucki Gross", "Yucki", followers=1000, genres=[]) is None
+    assert _match_score("Halo", "Southern Halo", followers=1000, genres=[]) is None
+    assert _match_score("Janne", "Janne Moreno", followers=1000, genres=[]) is None
+
+
+def test_match_score_rejects_high_followers_even_if_exact():
+    score = _match_score("Common Name Band", "Common Name Band", followers=500_000, genres=[])
+    assert score < 2
+
+
+def test_match_score_rejects_foreign_signals_combined_with_fuzzy_match():
+    fuzzy_name = "The Midnight Colective"  # trivial typo, not an exact match
+    score = _match_score("The Midnight Collective", fuzzy_name, followers=30_000, genres=["k-pop"])
+    assert score is not None and score < 2
+
+
+def test_match_score_exact_match_with_foreign_genre_alone_still_accepted():
+    """A legitimately-matched, low-follower band shouldn't be rejected just for
+    having a genre tag that sounds non-US (e.g. a Chicago Latin band)."""
+    score = _match_score("Grupo Fantasma", "Grupo Fantasma", followers=1000, genres=["latin"])
+    assert score >= 2
+
+
 # ── lookup_band ───────────────────────────────────────────────────────────────
 
 def _no_social():
@@ -115,6 +150,7 @@ def test_lookup_band_uses_ddg_spotify_url(mocker):
         "other_urls": ["https://theband.com"],
     })
     mocker.patch("band_lookup.get_artist_data_from_spotify", return_value={
+        "_name": "Some Band",
         "spotify_id": "ABC123",
         "spotify_url": "https://open.spotify.com/artist/ABC123",
         "spotify_genres": ["indie rock"],

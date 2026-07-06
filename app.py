@@ -55,7 +55,7 @@ _SHOW_BADGES = {
 _BAND_BADGES = {
     "deep_catalog": ("📀", "Deep Catalog", "This band has released a large catalog of tracks."),
     "new": ("🆕", "New Act", "This band's first release came out in the last year."),
-    "veteran": ("🕰️", "Veteran", "This band has been releasing music for 5+ years."),
+    "veteran": ("🕰️", "Veteran", "This band has been releasing music for 10+ years."),
     "popular": ("🔥", "Popular", "This band has a large Spotify following."),
     "underground": ("🔍", "Underground", "This band has a small/emerging Spotify following."),
 }
@@ -63,9 +63,9 @@ _BAND_BADGES = {
 _ESTABLISHED_AVG_FOLLOWERS = 5_000
 _RISING_AVG_FOLLOWERS = 1_000
 _RISING_AVG_YEARS = 2
-_DEEP_CATALOG_TRACKS = 20
+_DEEP_CATALOG_TRACKS = 30
 _NEW_ACT_YEARS = 1
-_VETERAN_YEARS = 5
+_VETERAN_YEARS = 10
 _POPULAR_FOLLOWERS = 50_000
 _UNDERGROUND_FOLLOWERS = 500
 
@@ -129,10 +129,7 @@ def _render_show_badges(bands, ticket_price) -> str:
     if ticket_price and re.search(r"free|\$0\b", ticket_price, re.IGNORECASE):
         keys.append("free")
 
-    if not keys:
-        return ""
-    badges = "".join(_badge_html(k, _SHOW_BADGES, "show-badge") for k in keys)
-    return f'<div class="show-badges">{badges}</div>'
+    return "".join(_badge_html(k, _SHOW_BADGES, "show-badge") for k in keys)
 
 
 def _band_missing_note(b) -> str:
@@ -337,13 +334,15 @@ def _render_show_card(show, bands) -> str:
         meta_chips.append(f'<span class="show-chip">{_esc(show["age_restriction"])}</span>')
     if show["low_confidence"]:
         meta_chips.append('<span class="show-chip show-chip--warn">⚠ verify dates</span>')
-    meta_row = f'<div class="show-chips">{"".join(meta_chips)}</div>' if meta_chips else ""
+    badge_html = _render_show_badges(bands, show["ticket_price"])
+    meta_row = (
+        f'<div class="show-chips-row">{"".join(meta_chips)}{badge_html}</div>'
+        if meta_chips or badge_html else ""
+    )
 
     notes_html = f'<div class="show-notes">{_esc(show["notes"])}</div>' if show["notes"] else ""
 
-    badge_html = _render_show_badges(bands, show["ticket_price"])
-
-    # Show main column: title (prominent) → time/date → chips
+    # Show main column: title (prominent) → time/date → chips + badges
     show_main_col = (
         f'<div class="show-main-col">'
         f'{venue_line}'
@@ -375,7 +374,6 @@ def _render_show_card(show, bands) -> str:
         f'<div class="show-card" '
         f'data-date="{_esc(show_date)}" data-venue="{_esc(venue_name)}">\n'
         f'  <div class="show-header">\n'
-        f'    {badge_html}\n'
         f'    {show_layout}\n'
         f'    {notes_html}\n'
         f'    {venue_btn_html}\n'

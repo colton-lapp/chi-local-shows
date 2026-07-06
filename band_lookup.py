@@ -151,8 +151,22 @@ def find_band_urls_via_ddg(band_name: str) -> dict:
     return found
 
 
-FOLLOWER_CAP_PARTIAL = 200_000  # reject non-exact Spotify matches above this
-_MATCH_THRESHOLD = 0.95  # minimum SequenceMatcher ratio for a valid name match
+# A small Chicago-area opener is essentially never internationally famous, so any
+# one of {non-exact name, high follower count, foreign-market signals} is a mild
+# red flag, and two or more together almost always mean we grabbed the wrong artist.
+FOLLOWER_SUSPICIOUS = 20_000     # extra scrutiny above this many followers
+FOLLOWER_HARD_CAP = 150_000      # no local opener has this many followers — always suspicious
+_FUZZY_MATCH_MIN_RATIO = 0.97    # after normalization, only trivial (punctuation/whitespace) diffs allowed
+_MATCH_ACCEPT_SCORE = 2          # minimum score in _match_score() to accept a candidate
+
+_FOREIGN_GENRE_KEYWORDS = {
+    "k-pop", "j-pop", "c-pop", "mandopop", "cantopop", "j-rock", "city pop", "anime", "vocaloid",
+    "latin", "reggaeton", "regional mexican", "musica mexicana", "banda", "norteno", "corrido",
+    "sertanejo", "funk carioca", "brazilian", "afrobeats", "amapiano", "bollywood", "punjabi",
+    "arabic", "turkish", "french pop", "french hip hop", "german hip hop", "italian pop",
+    "russian", "thai", "vietnamese", "vallenato", "bachata", "merengue", "kizomba", "flamenco",
+    "chanson", "schlager",
+}
 
 
 def _normalize_name(name: str) -> str:
@@ -163,12 +177,36 @@ def _normalize_name(name: str) -> str:
     return name
 
 
-def _names_roughly_match(a: str, b: str) -> bool:
-    """True if two artist names are ≥95% similar after basic normalization."""
-    a_n, b_n = _normalize_name(a), _normalize_name(b)
-    if a_n == b_n:
+def _looks_foreign(artist_name: str, genres: list[str]) -> bool:
+    """True if the artist name or genres suggest a non-English/non-US origin."""
+    if re.search(r"[^\x00-\x7F]", artist_name):
         return True
-    return difflib.SequenceMatcher(None, a_n, b_n).ratio() >= _MATCH_THRESHOLD
+    genre_text = " ".join(g.lower() for g in genres)
+    return any(kw in genre_text for kw in _FOREIGN_GENRE_KEYWORDS)
+
+
+def _match_score(band_name: str, artist_name: str, followers: int, genres: list[str]) -> int | None:
+    """
+    Score a Spotify search candidate's confidence of being `band_name`.
+    Returns None if the name isn't even a plausible match. Otherwise returns an
+    int score — callers should reject anything below _MATCH_ACCEPT_SCORE.
+    """
+    a_norm, b_norm = _normalize_name(artist_name), _normalize_name(band_name)
+    is_exact = a_norm == b_norm
+    if not is_exact and difflib.SequenceMatcher(None, a_norm, b_norm).ratio() < _FUZZY_MATCH_MIN_RATIO:
+        return None
+
+    score = 3 if is_exact else 2
+
+    if followers > FOLLOWER_HARD_CAP:
+        score -= 4
+    elif followers > FOLLOWER_SUSPICIOUS:
+        score -= 1
+
+    if _looks_foreign(artist_name, genres):
+        score -= 1
+
+    return score
 
 
 def get_artist_data_from_spotify(artist_id: str, sp: spotipy.Spotify) -> dict | None:
@@ -214,7 +252,8 @@ def get_artist_data_from_spotify(artist_id: str, sp: spotipy.Spotify) -> dict | 
 def lookup_spotify_direct(band_name: str, sp: spotipy.Spotify) -> dict | None:
     """
     Fallback: search Spotify API directly by artist name.
-    Requires ≥95% name similarity. Rejects non-exact matches above FOLLOWER_CAP_PARTIAL.
+    Scores every candidate with _match_score() and takes the best one that
+    clears _MATCH_ACCEPT_SCORE; see _match_score() for what makes a match suspicious.
     """
     try:
         results = sp.search(q=f"artist:{band_name}", type="artist", limit=5)
@@ -226,24 +265,15 @@ def lookup_spotify_direct(band_name: str, sp: spotipy.Spotify) -> dict | None:
     if not items:
         return None
 
-    band_norm = _normalize_name(band_name)
-    best = None
+    best, best_score = None, None
     for artist in items:
-        a_norm = _normalize_name(artist["name"])
-        if a_norm == band_norm:
-            best = artist
-            break
-        if difflib.SequenceMatcher(None, a_norm, band_norm).ratio() >= _MATCH_THRESHOLD:
-            best = artist
+        followers = artist.get("followers", {}).get("total", 0)
+        score = _match_score(band_name, artist["name"], followers, artist.get("genres", []))
+        if score is not None and (best_score is None or score > best_score):
+            best, best_score = artist, score
 
-    if best is None:
-        log.debug(f"No confident Spotify match for '{band_name}' (top: '{items[0]['name']}')")
-        return None
-
-    followers = best.get("followers", {}).get("total", 0)
-    is_exact = _normalize_name(best["name"]) == band_norm
-    if not is_exact and followers > FOLLOWER_CAP_PARTIAL:
-        log.debug(f"  Rejecting '{best['name']}' ({followers:,} followers) as likely wrong match for '{band_name}'")
+    if best is None or best_score < _MATCH_ACCEPT_SCORE:
+        log.debug(f"No confident Spotify match for '{band_name}' (top: '{items[0]['name']}', score={best_score})")
         return None
 
     # Reuse get_artist_data_from_spotify to also capture album stats
@@ -305,8 +335,10 @@ def lookup_band(band_name: str, sp) -> BandResult:
             if data:
                 fetched_name = data.get("_name", "")
                 followers = data.get("spotify_followers", 0) or 0
-                if followers > FOLLOWER_CAP_PARTIAL and not _names_roughly_match(band_name, fetched_name):
-                    log.debug(f"  Rejecting DDG Spotify match '{fetched_name}' ({followers:,} followers) for '{band_name}'")
+                genres = data.get("spotify_genres", [])
+                score = _match_score(band_name, fetched_name, followers, genres)
+                if score is None or score < _MATCH_ACCEPT_SCORE:
+                    log.debug(f"  Rejecting DDG Spotify match '{fetched_name}' (score={score}) for '{band_name}'")
                     spotify_url = None  # fall through to direct API search
                 else:
                     return _apply_spotify_data(result, data)

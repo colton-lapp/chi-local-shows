@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How AI Is Used — Chi Local Shows</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <h1><a href="index.html" style="color:inherit">Chi Local Shows</a></h1>
+    </div>
+  </header>
+  <main class="doc-page">
+    <a class="back-link" href="index.html">&larr; Back to shows</a>
+    <h1>How AI Is Used On This Site</h1>
+    <p><em>The figures below are rough, order-of-magnitude estimates based on public research —
+    not precise measurements of this specific site's usage. Sources are linked at the bottom.</em></p>
+
+    <h2>Two different uses of AI here</h2>
+    <p>(1) <strong>Building the site</strong> — AI coding tools (Claude Code) were used across a
+    handful of sessions to write the code for this project. (2) <strong>Running the site</strong>
+    — every week, a small, inexpensive LLM reads each venue's events page once and turns the
+    messy HTML into structured show data (band names, dates, times, ticket info). That's one
+    prompt per venue, about 10 prompts total per week.</p>
+
+    <h2>Why did you use AI to build it?</h2>
+    <p>Honestly: without AI coding tools, this project wouldn't have happened — I don't have a
+    professional software background or the free time to build something like this from scratch.
+    It came together over a handful of sessions with Claude Code after I had the idea, not
+    months of work.</p>
+
+    <h2>Why use AI to read the venue pages, instead of an API?</h2>
+    <p>None of these venues publish their show calendar as a public feed or API — every single
+    one formats its events page differently (different HTML, different wording, different
+    quirks). A small LLM can read the messy text and pull out "band names, date, time" regardless
+    of layout, instead of me hand-writing and maintaining ten different one-off scrapers that
+    break every time a venue redesigns its site.</p>
+
+    <h2>What about the environmental cost?</h2>
+    <p>This uses a small, cheap model, run about 10 times a week (~500 times a year) — not a
+    large flagship model, and not continuously. Rough public estimates for similarly-sized modern
+    LLM inference put a single prompt at roughly 0.2–0.3 watt-hours. At that rate, a full year of
+    this site's scraping (~500 prompts) works out to something like 150 watt-hours total — for
+    context, that's less electricity than an hour or two of HD video streaming, for the
+    <em>entire year</em> of runs combined. Water-use estimates for LLM inference are less precise
+    and much-debated, but even generous public estimates for larger-than-necessary models put a
+    year's worth of these prompts at a few gallons — a small fraction of the several hundred
+    gallons of water it takes to produce a single beef burger patty.</p>
+
+    <h2>I still have concerns about AI</h2>
+    <p>Fair — there are real, serious criticisms of AI at scale: data-center energy and water
+    demand, training-data ethics, labor impact, and reliability. The numbers above are about this
+    one small, specific use case, not a blanket defense of AI generally. If you think this is
+    still the wrong call, email me — <a href="mailto:colton.lapp@gmail.com">colton.lapp@gmail.com</a>.</p>
+
+    <h2>Sources</h2>
+    <p class="source-list">
+      Ballpark figures above, not exact for this site's specific model.<br>
+      <a href="https://epoch.ai/gradient-updates/how-much-energy-does-chatgpt-use" target="_blank">Epoch AI — How much energy does ChatGPT use?</a><br>
+      <a href="https://arxiv.org/html/2505.09598v1" target="_blank">"How Hungry is AI?" — benchmarking energy, water, and carbon footprint of LLM inference (arXiv 2505.09598)</a><br>
+      <a href="https://www.iea.org/commentaries/the-carbon-footprint-of-streaming-video-fact-checking-the-headlines" target="_blank">IEA — the carbon footprint of streaming video</a><br>
+      <a href="https://bryantresearch.co.uk/insight-items/comparing-water-footprint-ai/" target="_blank">Water footprint of AI vs. the cattle industry</a>
+    </p>
+
+    <a class="back-link" href="index.html">&larr; Back to shows</a>
+  </main>
+</body>
+</html>

@@ -5,10 +5,11 @@ on:
     branches: [main]
     paths:
       - 'app.py'
-      - 'scoring.py'
       - 'export.py'
       - 'cache.py'
       - 'static/**'
+      - 'about.html'
+      - 'ai-usage.html'
   workflow_dispatch:
 
 permissions:
@@ -39,7 +40,7 @@ jobs:
       - name: Prepare publish directory
         run: |
           mkdir -p dist
-          cp index.html dist/
+          cp index.html about.html ai-usage.html dist/
           cp -r static dist/
 
       - name: Deploy to gh-pages branch

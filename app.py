@@ -6,13 +6,13 @@ Usage: uv run python app.py [port]   (default: 8000)
 import html as html_lib
 import json
 import mimetypes
+import re
 import sys
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import db
-import scoring
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 DAYS = 14
@@ -45,6 +45,115 @@ def _esc(s) -> str:
     return html_lib.escape(str(s)) if s else ""
 
 
+# ── Badges ───────────────────────────────────────────────────────────────────
+# key -> (emoji, label, tooltip). Thresholds are rough starting points, easy to retune.
+_SHOW_BADGES = {
+    "established": ("🌟", "Established Acts", "The average band on this bill has a substantial Spotify following."),
+    "rising": ("🌱", "Rising Night", "This bill leans toward newer, still-emerging acts."),
+    "free": ("🎟️", "Free Show", "This show appears to be free to attend."),
+}
+_BAND_BADGES = {
+    "deep_catalog": ("📀", "Deep Catalog", "This band has released a large catalog of tracks."),
+    "new": ("🆕", "New Act", "This band's first release came out in the last year."),
+    "veteran": ("🕰️", "Veteran", "This band has been releasing music for 5+ years."),
+    "popular": ("🔥", "Popular", "This band has a large Spotify following."),
+    "underground": ("🔍", "Underground", "This band has a small/emerging Spotify following."),
+}
+
+_ESTABLISHED_AVG_FOLLOWERS = 5_000
+_RISING_AVG_FOLLOWERS = 1_000
+_RISING_AVG_YEARS = 2
+_DEEP_CATALOG_TRACKS = 20
+_NEW_ACT_YEARS = 1
+_VETERAN_YEARS = 5
+_POPULAR_FOLLOWERS = 50_000
+_UNDERGROUND_FOLLOWERS = 500
+
+
+def _years_since(release: str | None) -> float | None:
+    if not release:
+        return None
+    try:
+        return date.today().year - int(release[:4])
+    except ValueError:
+        return None
+
+
+def _badge_html(key: str, table: dict, css_class: str) -> str:
+    emoji, label, tooltip = table[key]
+    return f'<span class="{css_class}" title="{_esc(tooltip)}">{emoji} {_esc(label)}</span>'
+
+
+def _render_band_badges(b) -> str:
+    keys = []
+    if b["spotify_track_count"] and b["spotify_track_count"] > _DEEP_CATALOG_TRACKS:
+        keys.append("deep_catalog")
+
+    years = _years_since(b["spotify_first_release"])
+    if years is not None:
+        if years < _NEW_ACT_YEARS:
+            keys.append("new")
+        elif years >= _VETERAN_YEARS:
+            keys.append("veteran")
+
+    followers = b["spotify_followers"]
+    if followers is not None:
+        if followers > _POPULAR_FOLLOWERS:
+            keys.append("popular")
+        elif followers < _UNDERGROUND_FOLLOWERS:
+            keys.append("underground")
+
+    if not keys:
+        return ""
+    badges = "".join(_badge_html(k, _BAND_BADGES, "band-badge") for k in keys)
+    return f'<div class="band-badges">{badges}</div>'
+
+
+def _render_show_badges(bands, ticket_price) -> str:
+    keys = []
+
+    follower_counts = [b["spotify_followers"] for b in bands if b["spotify_followers"] is not None]
+    avg_followers = sum(follower_counts) / len(follower_counts) if follower_counts else None
+
+    year_gaps = [y for y in (_years_since(b["spotify_first_release"]) for b in bands) if y is not None]
+    avg_years = sum(year_gaps) / len(year_gaps) if year_gaps else None
+
+    if avg_followers is not None and avg_followers > _ESTABLISHED_AVG_FOLLOWERS:
+        keys.append("established")
+    elif (
+        avg_followers is not None and avg_years is not None
+        and avg_followers < _RISING_AVG_FOLLOWERS and avg_years < _RISING_AVG_YEARS
+    ):
+        keys.append("rising")
+
+    if ticket_price and re.search(r"free|\$0\b", ticket_price, re.IGNORECASE):
+        keys.append("free")
+
+    if not keys:
+        return ""
+    badges = "".join(_badge_html(k, _SHOW_BADGES, "show-badge") for k in keys)
+    return f'<div class="show-badges">{badges}</div>'
+
+
+def _band_missing_note(b) -> str:
+    status = b["lookup_status"]
+    if status == "not_found":
+        return "No Spotify profile found for this band."
+    if status == "error":
+        return "Spotify lookup unavailable for this band."
+    if status == "done" and not b["spotify_image_url"]:
+        return "Spotify match found, but no photo available."
+    return ""
+
+
+def _render_legend() -> str:
+    items = "".join(
+        f'<span class="legend-item" title="{_esc(tip)}">{emoji} {_esc(label)}</span>'
+        for emoji, label, tip in {**_SHOW_BADGES, **_BAND_BADGES}.values()
+    )
+    return f'<section class="badge-legend"><span class="legend-label">Badges:</span>{items}</section>'
+
+
 # ── Component renderers ───────────────────────────────────────────────────────
 
 def _render_band_card(b) -> str:
@@ -60,10 +169,13 @@ def _render_band_card(b) -> str:
     other_urls_raw = b["other_urls"]
 
     # ── Left column: info ────────────────────────────────────
-    img_html = (
-        f'<img class="band-img" src="{_esc(image_url)}" alt="{name}" loading="lazy">'
-        if image_url else '<div class="band-img-placeholder">♪</div>'
-    )
+    missing_note = _band_missing_note(b)
+    if image_url:
+        img_html = f'<img class="band-img" src="{_esc(image_url)}" alt="{name}" loading="lazy">'
+    else:
+        title_attr = f' title="{_esc(missing_note)}"' if missing_note else ""
+        img_html = f'<div class="band-img-placeholder"{title_attr}>♪</div>'
+    note_html = f'<div class="band-note">{_esc(missing_note)}</div>' if missing_note else ""
     primary_url = spotify_url or fallback_url
     name_html = (
         f'<a class="band-name" href="{_esc(primary_url)}" target="_blank">{name}</a>'
@@ -132,6 +244,8 @@ def _render_band_card(b) -> str:
         )
     links_html = f'<div class="band-links">{"".join(links)}</div>' if links else ""
 
+    badges_html = _render_band_badges(b)
+
     info_col = f"""<div class="band-info-col">
       <div class="band-top-row">
         {img_html}
@@ -139,6 +253,8 @@ def _render_band_card(b) -> str:
           {name_html}
           {genre_chips}
           {meta_html}
+          {badges_html}
+          {note_html}
         </div>
       </div>
       {links_html}
@@ -171,7 +287,7 @@ def _render_band_card(b) -> str:
   </div>"""
 
 
-def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) -> str:
+def _render_show_card(show, bands) -> str:
     venue_name = show["venue_name"]
     venue = _esc(venue_name)
     event_url = show["event_url"]
@@ -225,14 +341,7 @@ def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) 
 
     notes_html = f'<div class="show-notes">{_esc(show["notes"])}</div>' if show["notes"] else ""
 
-    # Score badge
-    badge_html = ""
-    is_rec = scoring.is_recommended(score)
-    if is_rec and reasons:
-        reasons_text = " · ".join(reasons)
-        badge_html = (
-            f'<div class="score-badge">⭐ Recommended — {_esc(reasons_text)}</div>'
-        )
+    badge_html = _render_show_badges(bands, show["ticket_price"])
 
     # Show main column: title (prominent) → time/date → chips
     show_main_col = (
@@ -262,9 +371,8 @@ def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) 
             f'</div><div class="band-embeds-col"></div></div>'
         )
 
-    extra_class = " show-card--recommended" if is_rec else ""
     return (
-        f'<div class="show-card{extra_class}" '
+        f'<div class="show-card" '
         f'data-date="{_esc(show_date)}" data-venue="{_esc(venue_name)}">\n'
         f'  <div class="show-header">\n'
         f'    {badge_html}\n'
@@ -280,10 +388,25 @@ def _render_show_card(show, bands, score: int = 0, reasons: list | None = None) 
 def _render_day_section(label: str, cards: list[str], date_iso: str) -> str:
     return (
         f'<section class="day-section" data-date="{_esc(date_iso)}">\n'
-        f'  <div class="day-label">{label}</div>\n'
-        f'  {"".join(cards)}\n'
+        f'  <details open>\n'
+        f'    <summary class="day-label">{label}</summary>\n'
+        f'    {"".join(cards)}\n'
+        f'  </details>\n'
         f'</section>'
     )
+
+
+def _render_intro() -> str:
+    return """<section class="site-intro">
+    <p><strong>A Chicago local-show aggregator.</strong> This page collects upcoming show
+    listings from a handful of local Chicago venues in one place &mdash; show details, Spotify
+    previews of songs (when available), and links to tickets and band profiles.</p>
+    <p>This is a hobby project, built and hosted for free on GitHub.
+    <a href="https://github.com/colton-lapp/chi-local-shows" target="_blank">View the code</a> &middot;
+    <a href="about.html">How this works / FAQ</a></p>
+    <p>AI helped build this site, and a small AI model is used weekly to pull show listings out
+    of venue websites. <a href="ai-usage.html">Read how and why &rarr;</a></p>
+  </section>"""
 
 
 def _render_page(content: str, today: date, end_date: date, static_root: str = "/static") -> str:
@@ -327,11 +450,10 @@ def _build_html(static_root: str = "/static") -> str:
         cards = []
         for show in day_shows:
             bands = db.get_bands_for_show(show["id"])
-            score, reasons = scoring.score_show(show["venue_name"], bands)
-            cards.append(_render_show_card(show, bands, score, reasons))
+            cards.append(_render_show_card(show, bands))
         sections.append(_render_day_section(label, cards, d))
 
-    body = (
+    listing = (
         "".join(sections)
         if sections
         else (
@@ -339,6 +461,7 @@ def _build_html(static_root: str = "/static") -> str:
             f"{today.strftime('%B %-d')} and {end.strftime('%B %-d, %Y')}.</p>"
         )
     )
+    body = _render_intro() + _render_legend() + listing
     return _render_page(body, today, end, static_root)
 
 

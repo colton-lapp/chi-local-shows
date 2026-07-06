@@ -124,33 +124,12 @@ main {
   border-left: 4px solid transparent;
 }
 
-.show-card--recommended {
-  border-left-color: #2d9e4f;
-  box-shadow: 0 1px 8px rgba(45,158,79,.15);
-}
-
 .show-header {
   padding: 0.85rem 1.1rem;
   border-bottom: 1px solid #eee;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-}
-
-/* Score badge */
-.score-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #1a6e33;
-  background: #e6f9ec;
-  border: 1px solid #b0e8bf;
-  border-radius: 5px;
-  padding: 0.2rem 0.6rem;
-  margin-bottom: 0.15rem;
-  width: fit-content;
 }
 
 /* Show header two-column layout */
@@ -205,7 +184,7 @@ main {
 
 /* Show title: the prominent identifier */
 .show-title {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: #111;
   line-height: 1.2;
@@ -319,16 +298,16 @@ main {
 }
 
 .band-img {
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   border-radius: 6px;
   object-fit: cover;
   flex-shrink: 0;
 }
 
 .band-img-placeholder {
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   border-radius: 6px;
   background: #e8e8e8;
   flex-shrink: 0;
@@ -337,6 +316,7 @@ main {
   justify-content: center;
   font-size: 1.3rem;
   color: #ccc;
+  cursor: help;
 }
 
 .band-name {
@@ -385,6 +365,91 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
   gap: 0.35rem;
   align-items: center;
   line-height: 1;
+}
+
+.band-note {
+  font-size: 0.72rem;
+  color: #999;
+  font-style: italic;
+}
+
+/* ── Badges ────────────────────────────────────────────────── */
+.show-badges,
+.band-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.show-badges { margin-top: 0.35rem; }
+
+.show-badge,
+.band-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #444;
+  background: #f0ede4;
+  border: 1px solid #e2dcc9;
+  border-radius: 99px;
+  padding: 0.12rem 0.55rem;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.badge-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #d0d0d0;
+}
+
+.legend-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #777;
+}
+
+.legend-item {
+  font-size: 0.72rem;
+  color: #555;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 99px;
+  padding: 0.15rem 0.6rem;
+  cursor: help;
+}
+
+/* ── Site intro ────────────────────────────────────────────── */
+.site-intro {
+  max-width: 640px;
+  margin: 0 0 1.75rem;
+  color: #444;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.site-intro p { margin-bottom: 0.6rem; }
+.site-intro p:last-child { margin-bottom: 0; }
+.site-intro a { color: #1a6e33; font-weight: 600; }
+.site-intro a:hover { text-decoration: underline; }
+
+/* ── Collapsible day sections ─────────────────────────────── */
+.day-section summary.day-label {
+  cursor: pointer;
+  list-style: none;
+}
+.day-section summary.day-label::-webkit-details-marker { display: none; }
+.day-section summary.day-label::before {
+  content: "▾ ";
+  font-size: 0.9em;
+}
+.day-section details:not([open]) summary.day-label::before {
+  content: "▸ ";
 }
 
 /* ── Social / streaming links ──────────────────────────────── */
@@ -449,6 +514,47 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
 }
 
 
+/* ── Doc pages (about.html, ai-usage.html) ─────────────────── */
+.doc-page {
+  max-width: 700px;
+  margin: 2rem auto;
+  padding: 0 1rem 3rem;
+  color: #222;
+}
+
+.doc-page h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-bottom: 1.25rem;
+}
+
+.doc-page h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 1.75rem 0 0.5rem;
+}
+
+.doc-page p {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+
+.doc-page a { color: #1a6e33; font-weight: 600; }
+.doc-page a:hover { text-decoration: underline; }
+
+.doc-page .back-link {
+  display: inline-block;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.doc-page .source-list {
+  font-size: 0.78rem;
+  color: #777;
+  line-height: 1.7;
+}
+
 /* ── Responsive: stack on narrow screens ───────────────────── */
 @media (max-width: 600px) {
   header { padding: 0.75rem 1rem; }
@@ -456,7 +562,14 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
   .show-venue-col { width: 64px; }
   .venue-thumb { width: 64px; height: 64px; }
   .venue-thumb-placeholder { width: 64px; height: 64px; }
-  .show-title { font-size: 1.1rem; }
+  .show-title { font-size: 1.25rem; }
+
+  .show-time-date { gap: 0.35rem; }
+  .show-chips { gap: 0.25rem; margin-top: 0.45rem; }
+  .genre-tags { gap: 0.3rem; }
+  .band-meta { gap: 0.5rem; }
+  .show-badges,
+  .band-badges { gap: 0.4rem; }
 
   .band-card {
     grid-template-columns: 1fr;

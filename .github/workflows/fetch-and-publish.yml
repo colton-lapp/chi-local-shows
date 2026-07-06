@@ -45,7 +45,7 @@ jobs:
       - name: Assemble publish directory
         run: |
           mkdir -p dist
-          cp index.html dist/
+          cp index.html about.html ai-usage.html dist/
           cp -r static dist/
 
       - name: Publish to GitHub Pages

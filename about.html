@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>About — Chi Local Shows</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <h1><a href="index.html" style="color:inherit">Chi Local Shows</a></h1>
+    </div>
+  </header>
+  <main class="doc-page">
+    <a class="back-link" href="index.html">&larr; Back to shows</a>
+    <h1>About Chi Local Shows / FAQ</h1>
+
+    <h2>What is this?</h2>
+    <p>A page that pulls together upcoming local band shows from a handful of Chicago venues,
+    so you don't have to check a dozen venue websites and Instagram feeds one by one.</p>
+
+    <h2>Why did you make this?</h2>
+    <p>Personal itch — I wanted an easy way to see what small, DIY-leaning shows were coming up
+    around Chicago without checking every venue separately. It's a spare-time hobby project.</p>
+
+    <h2>How does it work?</h2>
+    <p>Once a week (Sunday mornings), an automated job visits each venue's events page, reads
+    it, and pulls out show listings — bands, date, time, ticket link. For each band found, it
+    searches for that band's Spotify, Instagram, and Bandcamp pages, starting with a general web
+    search and falling back to Spotify's own artist search API, and runs some basic sanity
+    checks (name-similarity matching) before accepting a match — so a small local band doesn't
+    get mixed up with an unrelated famous artist who happens to share a name.</p>
+
+    <h2>Which venues are included? Can more be added?</h2>
+    <p>The initial list is just venues I personally follow and wanted to surface smaller/local
+    acts from — it's not meant to be exhaustive. Venues are added via a simple config file, so
+    adding more is easy. If there's a venue you'd like to see included, email me below.</p>
+
+    <h2>Does this cover comedy, karaoke, DJ nights, etc.?</h2>
+    <p>No — the goal is specifically to surface live bands, especially at smaller venues, not
+    comedy, karaoke, or DJ sets.</p>
+
+    <h2>Something's wrong about my band or my show — how do I fix it?</h2>
+    <p>Right now this is a static website with no login or edit form, so there's no self-serve
+    way for bands to correct their own info yet. Email the address below and it'll get fixed by
+    hand. Building a real submit-a-correction flow would take real additional work to bolt onto
+    a static site — I'm open to it if there's enough interest.</p>
+
+    <h2>I'm a developer and have ideas.</h2>
+    <p>Feedback, issues, and pull requests are welcome —
+    <a href="https://github.com/colton-lapp/chi-local-shows" target="_blank">github.com/colton-lapp/chi-local-shows</a>.</p>
+
+    <h2>A better version of this already exists — what should I do?</h2>
+    <p>Please tell me! I'd rather point people at something better than duplicate effort — email
+    me below and I'll take this site down.</p>
+
+    <h2>Where is this hosted? Could it move?</h2>
+    <p>Free, on my personal GitHub account via GitHub Pages. If there's real interest from the
+    local music community, moving to a dedicated domain is on the table.</p>
+
+    <h2>Contact</h2>
+    <p><a href="mailto:colton.lapp@gmail.com">colton.lapp@gmail.com</a></p>
+
+    <a class="back-link" href="index.html">&larr; Back to shows</a>
+  </main>
+</body>
+</html>

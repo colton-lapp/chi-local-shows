@@ -1,6 +1,24 @@
 // Chi Local Shows — frontend JS
 
-document.addEventListener('DOMContentLoaded', buildFilters);
+document.addEventListener('DOMContentLoaded', () => {
+  buildFilters();
+  collapsePastDays();
+});
+
+function collapsePastDays() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  document.querySelectorAll('.day-section').forEach(section => {
+    const iso = section.dataset.date;
+    if (!iso) return;
+    const sectionDate = new Date(iso + 'T00:00:00');
+    if (sectionDate < today) {
+      const details = section.querySelector('details');
+      if (details) details.open = false;
+    }
+  });
+}
 
 function buildFilters() {
   const cards = Array.from(document.querySelectorAll('.show-card'));

@@ -8,6 +8,7 @@ from band_lookup import (
     _google_cse_search,
     find_band_urls_via_google,
     google_cse_configured,
+    scrape_bandcamp_album_id,
     lookup_band,
 )
 
@@ -29,6 +30,93 @@ def test_build_google_urls_platform_sites():
     assert "bandcamp.com" in urls["google_bandcamp_url"]
     assert "instagram.com" in urls["google_instagram_url"]
     assert "spotify.com" in urls["google_spotify_url"]
+
+
+# ── scrape_bandcamp_album_id ──────────────────────────────────────────────────
+
+_ALBUM_HTML = """
+<html><head>
+<meta name="bc-page-properties" content='{"item_type":"a","item_id":123456789}'>
+</head><body></body></html>
+"""
+
+_TRACK_HTML = """
+<html><head>
+<meta name="bc-page-properties" content='{"item_type":"t","item_id":987654321}'>
+</head><body></body></html>
+"""
+
+_BAND_WITH_GRID_HTML = """
+<html><head>
+<meta name="bc-page-properties" content='{"item_type":"b","item_id":555}'>
+</head><body>
+<ol id="music-grid">
+  <li><a href="/album/latest-release">Latest</a></li>
+</ol>
+</body></html>
+"""
+
+_BAND_NO_GRID_HTML = """
+<html><head>
+<meta name="bc-page-properties" content='{"item_type":"b","item_id":555}'>
+</head><body><p>Custom homepage, no release grid here</p></body></html>
+"""
+
+_NO_META_HTML = "<html><head></head><body>nothing here</body></html>"
+
+
+def _fake_resp(mocker, html, ok=True, status=200):
+    resp = mocker.MagicMock()
+    resp.ok = ok
+    resp.status_code = status
+    resp.text = html
+    return resp
+
+
+def test_scrape_bandcamp_album_id_direct_album_url(mocker):
+    mocker.patch("band_lookup.requests.get", return_value=_fake_resp(mocker, _ALBUM_HTML))
+    assert scrape_bandcamp_album_id("https://theband.bandcamp.com/album/some-album") == "123456789"
+
+
+def test_scrape_bandcamp_album_id_direct_track_url(mocker):
+    mocker.patch("band_lookup.requests.get", return_value=_fake_resp(mocker, _TRACK_HTML))
+    assert scrape_bandcamp_album_id("https://theband.bandcamp.com/track/some-track") == "987654321"
+
+
+def test_scrape_bandcamp_album_id_follows_music_grid_link(mocker):
+    band_resp = _fake_resp(mocker, _BAND_WITH_GRID_HTML)
+    album_resp = _fake_resp(mocker, _ALBUM_HTML)
+    get_mock = mocker.patch("band_lookup.requests.get", side_effect=[band_resp, album_resp])
+    result = scrape_bandcamp_album_id("https://theband.bandcamp.com/")
+    assert result == "123456789"
+    assert get_mock.call_count == 2
+    assert get_mock.call_args_list[1].args[0] == "https://theband.bandcamp.com/album/latest-release"
+
+
+def test_scrape_bandcamp_album_id_falls_back_to_music_listing(mocker):
+    home_resp = _fake_resp(mocker, _BAND_NO_GRID_HTML)
+    music_resp = _fake_resp(mocker, _BAND_WITH_GRID_HTML)
+    album_resp = _fake_resp(mocker, _ALBUM_HTML)
+    get_mock = mocker.patch("band_lookup.requests.get", side_effect=[home_resp, music_resp, album_resp])
+    result = scrape_bandcamp_album_id("https://theband.bandcamp.com")
+    assert result == "123456789"
+    assert get_mock.call_args_list[1].args[0] == "https://theband.bandcamp.com/music"
+
+
+def test_scrape_bandcamp_album_id_returns_none_when_no_meta_tag(mocker):
+    mocker.patch("band_lookup.requests.get", return_value=_fake_resp(mocker, _NO_META_HTML))
+    assert scrape_bandcamp_album_id("https://theband.bandcamp.com/album/x") is None
+
+
+def test_scrape_bandcamp_album_id_returns_none_on_http_error(mocker):
+    mocker.patch("band_lookup.requests.get", return_value=_fake_resp(mocker, "", ok=False, status=404))
+    assert scrape_bandcamp_album_id("https://theband.bandcamp.com/") is None
+
+
+def test_scrape_bandcamp_uses_browser_like_user_agent():
+    ua = band_lookup._SCRAPE_HEADERS["User-Agent"]
+    assert "compatible" not in ua
+    assert "Chrome" in ua
 
 
 def test_extract_spotify_artist_id_valid():

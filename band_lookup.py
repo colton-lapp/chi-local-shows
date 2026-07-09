@@ -15,6 +15,7 @@ steps left empty:
 Google search URLs are always constructed as a manual fallback regardless of outcome.
 """
 import difflib
+import json
 import logging
 import os
 import re
@@ -30,7 +31,13 @@ from models import BandResult
 log = logging.getLogger(__name__)
 
 DDGS_SLEEP = 1.0
-_SCRAPE_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; chi-local-shows/1.0)"}
+# A "compatible; ...bot..."-style UA is a well-known bot-detection trigger for
+# CDN-fronted sites (Bandcamp included) — use a plain desktop-browser UA
+# instead, matching the one browser.py's Playwright launches use.
+_SCRAPE_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
 
 # Domains excluded from other_urls (pure search/utility noise)
 _EXCLUDE_DOMAINS = {"google.com", "bing.com", "duckduckgo.com", "yahoo.com"}
@@ -91,37 +98,64 @@ def build_google_urls(band_name: str) -> dict:
     }
 
 
-def scrape_bandcamp_album_id(bandcamp_url: str) -> str | None:
+def _bc_page_properties(html: str) -> dict | None:
     """
-    Fetch a Bandcamp artist page and return the numeric album ID of the most
-    recent release, suitable for use in the EmbeddedPlayer iframe URL.
-    Returns None on any failure.
+    Parse Bandcamp's `bc-page-properties` meta tag. Present on every Bandcamp
+    page (band, album, and track alike) and gives an unambiguous
+    {"item_type": "b"|"a"|"t", "item_id": int} — far more reliable than
+    hunting for the first large number in the page source, which can match
+    an unrelated ID (band ID, a different track within an album, a merch
+    item, a cross-promoted "fans also like" release, etc).
+    """
+    soup = BeautifulSoup(html, "lxml")
+    tag = soup.find("meta", attrs={"name": "bc-page-properties"})
+    if not tag or not tag.get("content"):
+        return None
+    try:
+        return json.loads(tag["content"])
+    except (ValueError, TypeError):
+        return None
+
+
+def scrape_bandcamp_album_id(bandcamp_url: str, _recursed: bool = False) -> str | None:
+    """
+    Return the numeric album/track ID for a Bandcamp URL, suitable for the
+    EmbeddedPlayer iframe. Returns None on any failure.
+
+    bandcamp_url may already point straight at a release (`/album/...` or
+    `/track/...`, as search results often return) or at a band/label root —
+    both are handled:
+      1. Fetch bandcamp_url and read its `bc-page-properties` meta tag.
+      2. If it's already an album/track page, its own item_id is the answer.
+      3. If it's a band/label page, find the first release link in the
+         `#music-grid` listing and recurse into that release page.
+      4. If no music-grid is present (custom homepage theme) and we haven't
+         already tried it, retry against the `/music` listing page.
     """
     try:
-        # Try /music listing page first — it reliably shows all releases
-        base = bandcamp_url.rstrip("/")
-        for url in [base + "/music", base]:
-            resp = requests.get(url, headers=_SCRAPE_HEADERS, timeout=10)
-            if resp.ok:
-                break
-        else:
+        resp = requests.get(bandcamp_url, headers=_SCRAPE_HEADERS, timeout=10)
+        if not resp.ok:
+            log.debug(f"Bandcamp fetch failed for {bandcamp_url}: HTTP {resp.status_code}")
             return None
 
+        props = _bc_page_properties(resp.text)
+        if props and props.get("item_type") in ("a", "t") and props.get("item_id"):
+            return str(props["item_id"])
+
+        # Band/label page: find its first release and recurse into it
         soup = BeautifulSoup(resp.text, "lxml")
+        grid = soup.select_one("#music-grid")
+        link = grid.select_one('a[href*="/album/"], a[href*="/track/"]') if grid else None
 
-        # Find the first album or track link on the page
-        link = soup.select_one('a[href*="/album/"], a[href*="/track/"]')
         if not link:
+            stripped = bandcamp_url.rstrip("/")
+            if not _recursed and not stripped.endswith("/music"):
+                return scrape_bandcamp_album_id(stripped + "/music", _recursed=True)
+            log.debug(f"No release found on Bandcamp page for {bandcamp_url}")
             return None
 
-        item_url = urljoin(base, link["href"])
-        resp2 = requests.get(item_url, headers=_SCRAPE_HEADERS, timeout=10)
-        if not resp2.ok:
-            return None
-
-        # Bandcamp bakes the numeric ID into every album/track page as a large int
-        match = re.search(r'"id"\s*:\s*(\d{6,})', resp2.text)
-        return match.group(1) if match else None
+        item_url = urljoin(bandcamp_url, link["href"])
+        return scrape_bandcamp_album_id(item_url, _recursed=True)
 
     except Exception as e:
         log.debug(f"Bandcamp scrape failed for {bandcamp_url}: {e}")

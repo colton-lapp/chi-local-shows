@@ -24,9 +24,9 @@ _venue_cfg: dict[str, dict] = {
 }
 
 _LOGO_URLS = json.loads((STATIC_DIR / "logo_urls.json").read_text())
-_LOGO_INSTAGRAM = f'<img src="{_LOGO_URLS["instagram"]}" class="social-icon" alt="" width="14" height="14">'
-_LOGO_BANDCAMP  = f'<img src="{_LOGO_URLS["bandcamp"]}"  class="social-icon" alt="" width="14" height="14">'
-_LOGO_SPOTIFY   = f'<img src="{_LOGO_URLS["spotify"]}"   class="social-icon" alt="" width="14" height="14">'
+_LOGO_SPOTIFY = f'<img src="{_LOGO_URLS["spotify"]}" class="social-icon" alt="" width="14" height="14">'
+_LOGO_INSTAGRAM_ROW = f'<img src="{_LOGO_URLS["instagram"]}" class="social-row-logo-img" alt="Instagram">'
+_LOGO_BANDCAMP_ROW = f'<img src="{_LOGO_URLS["bandcamp"]}" class="social-row-logo-img" alt="Bandcamp">'
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -153,18 +153,31 @@ def _render_legend() -> str:
 
 # ── Component renderers ───────────────────────────────────────────────────────
 
-def _render_link_blurb(url: str, snippet, image_url) -> str:
-    """A small caption line under a social-link button: thumbnail + 1-2 lines of the
-    search result's blurb, when the search tier provided one. Not a card — just a
-    quiet detail row, still clickable to the same URL as the button above it."""
-    thumb_html = (
-        f'<img class="link-blurb-thumb" src="{_esc(image_url)}" alt="" loading="lazy">'
-        if image_url else ""
+def _render_social_row(logo_html: str, label: str, url: str, snippet, image_url) -> str:
+    """
+    A three-column clickable row: platform logo | 2-3 line blurb | thumbnail.
+    No card background/border — an "invisible" click target across the whole
+    row (subtle hover highlight only), not a boxed card.
+    """
+    text = _esc(snippet) if snippet else f"View on {_esc(label)}"
+    image_html = (
+        f'<img class="social-row-image" src="{_esc(image_url)}" alt="" loading="lazy">'
+        if image_url else '<span class="social-row-image"></span>'
     )
-    return f"""<a class="link-blurb" href="{_esc(url)}" target="_blank">
-      {thumb_html}
-      <span class="link-blurb-text">{_esc(snippet)}</span>
+    return f"""<a class="social-row" href="{_esc(url)}" target="_blank">
+      <span class="social-row-logo">{logo_html}</span>
+      <span class="social-row-text">{text}</span>
+      {image_html}
     </a>"""
+
+
+def _render_social_not_found(label: str, search_url: str) -> str:
+    """Fallback row when a platform link wasn't found: a button to a pre-filled
+    Google search for it instead."""
+    return (
+        f'<a class="social-not-found" href="{_esc(search_url)}" target="_blank">'
+        f'No {_esc(label)} found — search for {_esc(label)}</a>'
+    )
 
 
 def _render_band_card(b) -> str:
@@ -178,6 +191,8 @@ def _render_band_card(b) -> str:
     bandcamp_snippet = b["bandcamp_snippet"]
     bandcamp_image_url = b["bandcamp_image_url"]
     bandcamp_album_id = b["bandcamp_album_id"]
+    google_instagram_url = b["google_instagram_url"]
+    google_bandcamp_url = b["google_bandcamp_url"]
     image_url = b["spotify_image_url"]
     fallback_url = b["google_general_url"]
     popularity = b["spotify_popularity"]
@@ -241,33 +256,34 @@ def _render_band_card(b) -> str:
         if meta_parts else ""
     )
 
-    # All three platform buttons are always the same size/style. Instagram/Bandcamp
-    # additionally get a small caption line below (thumbnail + 1-2 lines of blurb)
-    # when the search tier (currently only Serper) surfaced one — never a card,
-    # just a quiet detail row under the button.
-    links = []
-    blurbs = []
-    if spotify_url:
-        links.append(
-            f'<a class="link-spotify" href="{_esc(spotify_url)}" target="_blank">'
-            f'{_LOGO_SPOTIFY} Spotify</a>'
-        )
+    # Instagram row, then Bandcamp row — each a 3-column (logo | blurb | thumbnail)
+    # clickable row when found, or a "not found, search Google" fallback button
+    # when not. Spotify is a separate plain button at the bottom (it already gets
+    # a full embed on the right, so it doesn't need a row of its own).
     if instagram_url:
-        links.append(
-            f'<a class="link-instagram" href="{_esc(instagram_url)}" target="_blank">'
-            f'{_LOGO_INSTAGRAM} Instagram</a>'
-        )
-        if instagram_snippet:
-            blurbs.append(_render_link_blurb(instagram_url, instagram_snippet, instagram_image_url))
+        instagram_row = _render_social_row(_LOGO_INSTAGRAM_ROW, "Instagram", instagram_url, instagram_snippet, instagram_image_url)
+    elif google_instagram_url:
+        instagram_row = _render_social_not_found("Instagram", google_instagram_url)
+    else:
+        instagram_row = ""
+
     if bandcamp_url:
-        links.append(
-            f'<a class="link-bandcamp" href="{_esc(bandcamp_url)}" target="_blank">'
-            f'{_LOGO_BANDCAMP} Bandcamp</a>'
-        )
-        if bandcamp_snippet:
-            blurbs.append(_render_link_blurb(bandcamp_url, bandcamp_snippet, bandcamp_image_url))
-    links_html = f'<div class="band-links">{"".join(links)}</div>' if links else ""
-    previews_html = f'<div class="link-blurb-list">{"".join(blurbs)}</div>' if blurbs else ""
+        bandcamp_row = _render_social_row(_LOGO_BANDCAMP_ROW, "Bandcamp", bandcamp_url, bandcamp_snippet, bandcamp_image_url)
+    elif google_bandcamp_url:
+        bandcamp_row = _render_social_not_found("Bandcamp", google_bandcamp_url)
+    else:
+        bandcamp_row = ""
+
+    social_rows_html = (
+        f'<div class="social-rows">{instagram_row}{bandcamp_row}</div>'
+        if instagram_row or bandcamp_row else ""
+    )
+
+    spotify_button_html = (
+        f'<a class="btn-spotify" href="{_esc(spotify_url)}" target="_blank">'
+        f'{_LOGO_SPOTIFY} Go to Spotify</a>'
+        if spotify_url else ""
+    )
 
     badges_html = _render_band_badges(b)
 
@@ -282,8 +298,8 @@ def _render_band_card(b) -> str:
           {note_html}
         </div>
       </div>
-      {links_html}
-      {previews_html}
+      {social_rows_html}
+      {spotify_button_html}
     </div>"""
 
     # ── Right column: embeds ─────────────────────────────────

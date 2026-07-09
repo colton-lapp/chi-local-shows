@@ -46,6 +46,11 @@ This is the only key that isn't a single-click signup, so here's the full path:
 
 Free tier is 100 queries/day (band lookup uses 1–2 queries per band). If unset, the pipeline automatically falls back to Bing/DuckDuckGo with no other changes needed — nothing breaks if you skip this.
 
+**Troubleshooting:**
+- **"Search the entire web" isn't offered when creating the engine** — Google's setup flow sometimes forces you to enter specific sites first. That's fine: since band lookup only ever extracts Spotify/Instagram/Bandcamp links anyway, restrict the engine to `open.spotify.com`, `instagram.com`, and `bandcamp.com` and it'll work the same for this use case (you'll just get `[]` for `other_urls` from the Google tier — Bing/DDG still populate those). If you do want "search entire web," it's usually a toggle on the engine's **Setup → Basics** page after creation, not just at creation time.
+- **A key copied from the `<script src="https://cse.google.com/cse.js?cx=...">` embed snippet is not the same as `GOOGLE_SEARCH_API_KEY`.** That snippet is the free client-side widget and needs no API key at all. `GOOGLE_SEARCH_API_KEY` must come from Cloud Console → APIs & Services → Credentials, and if it has an "HTTP referrers" application restriction (common for keys meant for browser widgets), server-side calls from `fetch.py`/GitHub Actions will get a 403 with no `Referer` header. Leave the key unrestricted (or restrict it to the Custom Search API only, not by referrer).
+- Check the run logs: `fetch.py` now logs whether Google CSE is configured at the start of the lookup phase, and prints a summary at the end (queries/errors/hits per tier, Bandcamp URLs found vs. album IDs scraped). If Google shows `0 errors, 0 band(s) hit` after several queries, that's a strong signal of a CX/key misconfiguration rather than a code bug.
+
 ## Usage
 
 ```sh

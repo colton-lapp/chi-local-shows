@@ -153,21 +153,17 @@ def _render_legend() -> str:
 
 # ── Component renderers ───────────────────────────────────────────────────────
 
-def _render_social_row(logo_html: str, label: str, url: str, snippet, image_url) -> str:
+def _render_social_row(logo_html: str, label: str, url: str, title, snippet) -> str:
     """
-    A three-column clickable row: platform logo | 2-3 line blurb | thumbnail.
+    A two-column clickable row: platform logo | title + 2-3 line blurb.
     No card background/border — an "invisible" click target across the whole
     row (subtle hover highlight only), not a boxed card.
     """
+    title_html = f'<span class="social-row-title">{_esc(title)}</span>' if title else ""
     text = _esc(snippet) if snippet else f"View on {_esc(label)}"
-    image_html = (
-        f'<img class="social-row-image" src="{_esc(image_url)}" alt="" loading="lazy">'
-        if image_url else '<span class="social-row-image"></span>'
-    )
     return f"""<a class="social-row" href="{_esc(url)}" target="_blank">
       <span class="social-row-logo">{logo_html}</span>
-      <span class="social-row-text">{text}</span>
-      {image_html}
+      <span class="social-row-text">{title_html}<span class="social-row-snippet">{text}</span></span>
     </a>"""
 
 
@@ -186,10 +182,10 @@ def _render_band_card(b) -> str:
     spotify_url = b["spotify_url"]
     instagram_url = b["instagram_url"]
     instagram_snippet = b["instagram_snippet"]
-    instagram_image_url = b["instagram_image_url"]
+    instagram_title = b["instagram_title"]
     bandcamp_url = b["bandcamp_url"]
     bandcamp_snippet = b["bandcamp_snippet"]
-    bandcamp_image_url = b["bandcamp_image_url"]
+    bandcamp_title = b["bandcamp_title"]
     bandcamp_album_id = b["bandcamp_album_id"]
     google_instagram_url = b["google_instagram_url"]
     google_bandcamp_url = b["google_bandcamp_url"]
@@ -256,19 +252,19 @@ def _render_band_card(b) -> str:
         if meta_parts else ""
     )
 
-    # Instagram row, then Bandcamp row — each a 3-column (logo | blurb | thumbnail)
+    # Instagram row, then Bandcamp row — each a 2-column (logo | title + blurb)
     # clickable row when found, or a "not found, search Google" fallback button
     # when not. Spotify is a separate plain button at the bottom (it already gets
     # a full embed on the right, so it doesn't need a row of its own).
     if instagram_url:
-        instagram_row = _render_social_row(_LOGO_INSTAGRAM_ROW, "Instagram", instagram_url, instagram_snippet, instagram_image_url)
+        instagram_row = _render_social_row(_LOGO_INSTAGRAM_ROW, "Instagram", instagram_url, instagram_title, instagram_snippet)
     elif google_instagram_url:
         instagram_row = _render_social_not_found("Instagram", google_instagram_url)
     else:
         instagram_row = ""
 
     if bandcamp_url:
-        bandcamp_row = _render_social_row(_LOGO_BANDCAMP_ROW, "Bandcamp", bandcamp_url, bandcamp_snippet, bandcamp_image_url)
+        bandcamp_row = _render_social_row(_LOGO_BANDCAMP_ROW, "Bandcamp", bandcamp_url, bandcamp_title, bandcamp_snippet)
     elif google_bandcamp_url:
         bandcamp_row = _render_social_not_found("Bandcamp", google_bandcamp_url)
     else:

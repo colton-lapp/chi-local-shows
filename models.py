@@ -33,10 +33,10 @@ class BandResult:
     bandcamp_url: str | None = None
     bandcamp_album_id: str | None = None  # numeric album ID for embed iframe
     bandcamp_snippet: str | None = None      # search-result blurb, if the search tier provided one
-    bandcamp_image_url: str | None = None    # search-result thumbnail, if the search tier provided one
+    bandcamp_title: str | None = None        # search-result title, if the search tier provided one
     instagram_url: str | None = None
     instagram_snippet: str | None = None
-    instagram_image_url: str | None = None
+    instagram_title: str | None = None
     other_urls: list[str] = field(default_factory=list)  # top 5 other search result URLs
     # Google search URLs — always constructed, even on lookup failure
     google_general_url: str = ""

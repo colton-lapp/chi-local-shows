@@ -186,12 +186,12 @@ def _ddg_search(query: str, num_results: int = 15) -> list[dict]:
         return []
 
 
-# (url field, snippet field, image field) — snippet/image are None for tiers
+# (url field, snippet field, title field) — snippet/title are None for tiers
 # (Bing, DDG) whose result dicts don't carry that info; only Serper's do.
 _URL_FIELDS = [
     ("spotify_url", None, None),
-    ("instagram_url", "instagram_snippet", "instagram_image"),
-    ("bandcamp_url", "bandcamp_snippet", "bandcamp_image"),
+    ("instagram_url", "instagram_snippet", "instagram_title"),
+    ("bandcamp_url", "bandcamp_snippet", "bandcamp_title"),
 ]
 
 
@@ -199,13 +199,13 @@ def _classify_results(results: list[dict]) -> dict:
     """
     Walk search result URLs and bucket into: spotify_url, instagram_url,
     bandcamp_url, and up to 5 other_urls. Stops filling each bucket once found.
-    When a result dict carries "snippet"/"image" (Serper only), captures those
+    When a result dict carries "snippet"/"title" (Serper only), captures those
     alongside the matched Instagram/Bandcamp URL for display as a link preview.
     """
     found: dict = {
         "spotify_url": None,
-        "instagram_url": None, "instagram_snippet": None, "instagram_image": None,
-        "bandcamp_url": None, "bandcamp_snippet": None, "bandcamp_image": None,
+        "instagram_url": None, "instagram_snippet": None, "instagram_title": None,
+        "bandcamp_url": None, "bandcamp_snippet": None, "bandcamp_title": None,
         "other_urls": [],
     }
     for r in results:
@@ -217,11 +217,11 @@ def _classify_results(results: list[dict]) -> dict:
         elif "instagram.com" in url and not found["instagram_url"]:
             found["instagram_url"] = url
             found["instagram_snippet"] = r.get("snippet")
-            found["instagram_image"] = r.get("image")
+            found["instagram_title"] = r.get("title")
         elif "bandcamp.com" in url and not found["bandcamp_url"]:
             found["bandcamp_url"] = url
             found["bandcamp_snippet"] = r.get("snippet")
-            found["bandcamp_image"] = r.get("image")
+            found["bandcamp_title"] = r.get("title")
         elif (
             len(found["other_urls"]) < 5
             and not any(d in url for d in ("spotify.com", "instagram.com", "bandcamp.com"))
@@ -233,13 +233,13 @@ def _classify_results(results: list[dict]) -> dict:
 
 def _merge_found(dst: dict, src: dict) -> dict:
     """Fill empty fields in dst from src (later tiers only patch gaps). Mutates and returns dst."""
-    for url_key, snippet_key, image_key in _URL_FIELDS:
+    for url_key, snippet_key, title_key in _URL_FIELDS:
         if not dst.get(url_key) and src.get(url_key):
             dst[url_key] = src[url_key]
             if snippet_key:
                 dst[snippet_key] = src.get(snippet_key)
-            if image_key:
-                dst[image_key] = src.get(image_key)
+            if title_key:
+                dst[title_key] = src.get(title_key)
     if not dst.get("other_urls") and src.get("other_urls"):
         dst["other_urls"] = src["other_urls"]
     return dst
@@ -273,7 +273,7 @@ def _serper_search(query: str, num_results: int = 10) -> list[dict]:
         resp.raise_for_status()
         items = resp.json().get("organic", [])
         return [
-            {"href": item["link"], "snippet": item.get("snippet"), "image": item.get("imageUrl")}
+            {"href": item["link"], "snippet": item.get("snippet"), "title": item.get("title")}
             for item in items if item.get("link")
         ]
     except Exception as e:
@@ -546,10 +546,10 @@ def _lookup_band_impl(band_name: str, sp) -> BandResult:
 
     result.instagram_url = found["instagram_url"]
     result.instagram_snippet = found.get("instagram_snippet")
-    result.instagram_image_url = found.get("instagram_image")
+    result.instagram_title = found.get("instagram_title")
     result.bandcamp_url = found["bandcamp_url"]
     result.bandcamp_snippet = found.get("bandcamp_snippet")
-    result.bandcamp_image_url = found.get("bandcamp_image")
+    result.bandcamp_title = found.get("bandcamp_title")
     result.other_urls = found["other_urls"]
     spotify_url = found["spotify_url"]
 

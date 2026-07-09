@@ -153,19 +153,17 @@ def _render_legend() -> str:
 
 # ── Component renderers ───────────────────────────────────────────────────────
 
-def _render_link_preview(css_class: str, icon_html: str, label: str, url: str, snippet, image_url) -> str:
-    """A richer social-link card with the search result's blurb/thumbnail, when available."""
+def _render_link_blurb(url: str, snippet, image_url) -> str:
+    """A small caption line under a social-link button: thumbnail + 1-2 lines of the
+    search result's blurb, when the search tier provided one. Not a card — just a
+    quiet detail row, still clickable to the same URL as the button above it."""
     thumb_html = (
-        f'<img class="link-preview-thumb" src="{_esc(image_url)}" alt="" loading="lazy">'
+        f'<img class="link-blurb-thumb" src="{_esc(image_url)}" alt="" loading="lazy">'
         if image_url else ""
     )
-    snippet_html = f'<span class="link-preview-snippet">{_esc(snippet)}</span>' if snippet else ""
-    return f"""<a class="link-preview {css_class}" href="{_esc(url)}" target="_blank">
+    return f"""<a class="link-blurb" href="{_esc(url)}" target="_blank">
       {thumb_html}
-      <span class="link-preview-body">
-        <span class="link-preview-label">{icon_html} {_esc(label)}</span>
-        {snippet_html}
-      </span>
+      <span class="link-blurb-text">{_esc(snippet)}</span>
     </a>"""
 
 
@@ -243,39 +241,33 @@ def _render_band_card(b) -> str:
         if meta_parts else ""
     )
 
+    # All three platform buttons are always the same size/style. Instagram/Bandcamp
+    # additionally get a small caption line below (thumbnail + 1-2 lines of blurb)
+    # when the search tier (currently only Serper) surfaced one — never a card,
+    # just a quiet detail row under the button.
     links = []
+    blurbs = []
     if spotify_url:
         links.append(
             f'<a class="link-spotify" href="{_esc(spotify_url)}" target="_blank">'
             f'{_LOGO_SPOTIFY} Spotify</a>'
         )
-    # Instagram/Bandcamp: render as a richer preview card when the search tier
-    # (currently only Serper) surfaced a blurb; otherwise fall back to a plain link.
-    previews = []
     if instagram_url:
+        links.append(
+            f'<a class="link-instagram" href="{_esc(instagram_url)}" target="_blank">'
+            f'{_LOGO_INSTAGRAM} Instagram</a>'
+        )
         if instagram_snippet:
-            previews.append(_render_link_preview(
-                "link-instagram", _LOGO_INSTAGRAM, "Instagram",
-                instagram_url, instagram_snippet, instagram_image_url,
-            ))
-        else:
-            links.append(
-                f'<a class="link-instagram" href="{_esc(instagram_url)}" target="_blank">'
-                f'{_LOGO_INSTAGRAM} Instagram</a>'
-            )
+            blurbs.append(_render_link_blurb(instagram_url, instagram_snippet, instagram_image_url))
     if bandcamp_url:
+        links.append(
+            f'<a class="link-bandcamp" href="{_esc(bandcamp_url)}" target="_blank">'
+            f'{_LOGO_BANDCAMP} Bandcamp</a>'
+        )
         if bandcamp_snippet:
-            previews.append(_render_link_preview(
-                "link-bandcamp", _LOGO_BANDCAMP, "Bandcamp",
-                bandcamp_url, bandcamp_snippet, bandcamp_image_url,
-            ))
-        else:
-            links.append(
-                f'<a class="link-bandcamp" href="{_esc(bandcamp_url)}" target="_blank">'
-                f'{_LOGO_BANDCAMP} Bandcamp</a>'
-            )
+            blurbs.append(_render_link_blurb(bandcamp_url, bandcamp_snippet, bandcamp_image_url))
     links_html = f'<div class="band-links">{"".join(links)}</div>' if links else ""
-    previews_html = f'<div class="link-preview-list">{"".join(previews)}</div>' if previews else ""
+    previews_html = f'<div class="link-blurb-list">{"".join(blurbs)}</div>' if blurbs else ""
 
     badges_html = _render_band_badges(b)
 

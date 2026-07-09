@@ -150,6 +150,15 @@ def run(
         log.info("No bands need lookup")
         return
 
+    if band_lookup.google_cse_configured():
+        log.info("Google Custom Search: configured (GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX set)")
+    else:
+        log.info(
+            "Google Custom Search: not configured — set GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX "
+            "to enable it. Falling back to Bing/DuckDuckGo only."
+        )
+    band_lookup.reset_stats()
+
     log.info(f"Looking up {len(pending)} band(s)")
     for band_row in pending:
         name = band_row["name"]
@@ -172,7 +181,47 @@ def run(
             db.update_band_lookup(band_row["id"], fallback)
         time.sleep(LOOKUP_SLEEP)
 
+    _log_lookup_summary()
     log.info("Done.")
+
+
+def _log_lookup_summary() -> None:
+    """Log a health summary of the band-lookup phase and flag tiers that look broken
+    (configured but never producing hits, or erroring out) — these fail silently
+    otherwise since per-band tier misses are only logged at debug."""
+    s = band_lookup.get_stats()
+    total = s["bands_total"]
+    if total == 0:
+        return
+
+    google_configured = band_lookup.google_cse_configured()
+    log.info(
+        f"Lookup summary: {total} band(s) — "
+        f"{s['bands_spotify_matched']} matched on Spotify, {s['bands_not_found']} not found"
+    )
+    log.info(
+        f"  Google CSE: {'configured' if google_configured else 'not configured'}, "
+        f"{s['google_queries']} queries, {s['google_errors']} errors, {s['google_bands_hit']} band(s) hit"
+    )
+    log.info(f"  Bing: {s['bing_attempts']} attempts, {s['bing_errors']} errors, {s['bing_bands_hit']} band(s) hit")
+    log.info(f"  DDG: {s['ddg_errors']} errors, {s['ddg_bands_hit']} band(s) hit")
+    log.info(
+        f"  Bandcamp: {s['bandcamp_urls_found']} URL(s) found, "
+        f"{s['bandcamp_album_ids_scraped']} album ID(s) scraped"
+    )
+
+    if google_configured and s["google_queries"] > 0 and s["google_bands_hit"] == 0:
+        log.warning(
+            "Google CSE ran queries but never contributed a hit this run — likely misconfigured "
+            "(wrong CX, API not enabled, or a restricted key) even if no request errors were raised."
+        )
+    if s["google_disabled_reason"]:
+        log.warning(f"Google CSE was disabled mid-run after repeated errors: {s['google_last_error']}")
+    if s["bandcamp_urls_found"] > 0 and s["bandcamp_album_ids_scraped"] == 0:
+        log.warning(
+            f"Found {s['bandcamp_urls_found']} Bandcamp URL(s) but scraped 0 album IDs — "
+            "the Bandcamp album-ID scraper may be broken (site markup change, blocking, etc.)."
+        )
 
 
 if __name__ == "__main__":

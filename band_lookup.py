@@ -35,6 +35,50 @@ _SCRAPE_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; chi-local-shows/1.0)"
 # Domains excluded from other_urls (pure search/utility noise)
 _EXCLUDE_DOMAINS = {"google.com", "bing.com", "duckduckgo.com", "yahoo.com"}
 
+# After this many Google CSE errors in a single run, stop calling it (the
+# failure is almost always systemic — bad key, API not enabled, no quota —
+# not per-band, so retrying 100+ more times just burns the run's time budget).
+_GOOGLE_CSE_MAX_ERRORS = 3
+
+
+def _new_stats() -> dict:
+    return {
+        "google_queries": 0,
+        "google_errors": 0,
+        "google_last_error": None,
+        "google_disabled_reason": None,
+        "google_bands_hit": 0,
+        "bing_attempts": 0,
+        "bing_errors": 0,
+        "bing_bands_hit": 0,
+        "ddg_errors": 0,
+        "ddg_bands_hit": 0,
+        "bandcamp_urls_found": 0,
+        "bandcamp_album_ids_scraped": 0,
+        "bands_total": 0,
+        "bands_spotify_matched": 0,
+        "bands_not_found": 0,
+    }
+
+
+# Per-run counters, reset via reset_stats() at the start of each fetch run.
+# These exist so fetch.py can log a health summary after the band-lookup
+# phase — per-band tier failures are otherwise invisible (logged at debug).
+stats = _new_stats()
+
+
+def reset_stats() -> None:
+    global stats
+    stats = _new_stats()
+
+
+def get_stats() -> dict:
+    return dict(stats)
+
+
+def google_cse_configured() -> bool:
+    return bool(os.environ.get("GOOGLE_SEARCH_API_KEY")) and bool(os.environ.get("GOOGLE_SEARCH_CX"))
+
 
 def build_google_urls(band_name: str) -> dict:
     """Always returns Google search URLs. Never fails."""
@@ -103,7 +147,8 @@ def _ddg_search(query: str, num_results: int = 15) -> list[dict]:
         with DDGS() as ddgs:
             return list(ddgs.text(query, max_results=num_results))
     except Exception as e:
-        log.debug(f"DDG search failed ({query!r}): {e}")
+        stats["ddg_errors"] += 1
+        log.warning(f"DDG search failed ({query!r}): {e}")
         return []
 
 
@@ -146,12 +191,21 @@ def _google_cse_search(query: str, num_results: int = 10) -> list[dict]:
     """
     Run a Google Custom Search JSON API search. Returns [] on any error, or if
     GOOGLE_SEARCH_API_KEY/GOOGLE_SEARCH_CX aren't configured (safe no-op).
+
+    After _GOOGLE_CSE_MAX_ERRORS failures in a run, stops calling the API
+    entirely (logged once at warning) — a broken key/quota/API-enablement
+    issue fails the same way for every band, so there's no point burning the
+    rest of the 100+ band run retrying a dead endpoint.
     """
     api_key = os.environ.get("GOOGLE_SEARCH_API_KEY")
     cx = os.environ.get("GOOGLE_SEARCH_CX")
     if not api_key or not cx:
-        log.debug("Google CSE not configured (GOOGLE_SEARCH_API_KEY/GOOGLE_SEARCH_CX unset), skipping")
         return []
+
+    if stats["google_disabled_reason"]:
+        return []
+
+    stats["google_queries"] += 1
     try:
         resp = requests.get(
             "https://www.googleapis.com/customsearch/v1",
@@ -162,7 +216,24 @@ def _google_cse_search(query: str, num_results: int = 10) -> list[dict]:
         items = resp.json().get("items", [])
         return [{"href": item["link"]} for item in items if item.get("link")]
     except Exception as e:
-        log.debug(f"Google CSE search failed ({query!r}): {e}")
+        stats["google_errors"] += 1
+        body = ""
+        resp_obj = getattr(e, "response", None)
+        if resp_obj is not None:
+            body = f" | response: {resp_obj.text[:300]}"
+        detail = f"{e}{body}"
+        stats["google_last_error"] = detail
+        log.warning(f"Google CSE search failed ({query!r}): {detail}")
+        if stats["google_errors"] >= _GOOGLE_CSE_MAX_ERRORS:
+            stats["google_disabled_reason"] = detail
+            log.warning(
+                f"Google CSE failed {stats['google_errors']} times this run — disabling it for "
+                "the rest of this run (falling back to Bing/DDG for remaining bands). Likely "
+                "causes: API key is HTTP-referrer-restricted (server-side calls need an "
+                "unrestricted or IP-restricted key, not the one from the cse.js embed snippet), "
+                "'Custom Search API' isn't enabled on the key's Cloud project, or the daily "
+                "query quota is exhausted."
+            )
         return []
 
 
@@ -357,6 +428,17 @@ def _apply_spotify_data(result: BandResult, data: dict) -> BandResult:
 
 
 def lookup_band(band_name: str, sp) -> BandResult:
+    """Master lookup. Thin wrapper around _lookup_band_impl that tallies
+    per-run outcome stats regardless of which internal step returned early."""
+    result = _lookup_band_impl(band_name, sp)
+    if result.spotify_url:
+        stats["bands_spotify_matched"] += 1
+    if result.lookup_status == "not_found":
+        stats["bands_not_found"] += 1
+    return result
+
+
+def _lookup_band_impl(band_name: str, sp) -> BandResult:
     """
     Master lookup. Always returns BandResult with Google URLs populated.
 
@@ -368,12 +450,18 @@ def lookup_band(band_name: str, sp) -> BandResult:
     sp can be None (Spotify auth failed) — social links and Google URLs still populated.
     """
     result = BandResult(name=band_name, **build_google_urls(band_name))
+    stats["bands_total"] += 1
 
-    # Step 1: Google CSE → all social URLs
-    found = find_band_urls_via_google(band_name)
+    def _any_found(f: dict) -> bool:
+        return bool(f["spotify_url"] or f["instagram_url"] or f["bandcamp_url"])
 
     def _still_missing(f: dict) -> bool:
         return not (f["spotify_url"] and f["instagram_url"] and f["bandcamp_url"])
+
+    # Step 1: Google CSE → all social URLs
+    found = find_band_urls_via_google(band_name)
+    if google_cse_configured() and _any_found(found):
+        stats["google_bands_hit"] += 1
 
     # Step 2: Bing via Playwright, filling in whatever Google didn't find
     if _still_missing(found):
@@ -381,13 +469,21 @@ def lookup_band(band_name: str, sp) -> BandResult:
             import browser
             if browser.is_available():
                 log.debug(f"  Trying Bing browser search for '{band_name}'")
+                stats["bing_attempts"] += 1
+                before = dict(found)
                 found = _merge_found(found, browser.search_bing_urls(band_name))
+                if found != before:
+                    stats["bing_bands_hit"] += 1
         except Exception as e:
-            log.debug(f"  Bing browser search failed for '{band_name}': {e}")
+            stats["bing_errors"] += 1
+            log.warning(f"  Bing browser search failed for '{band_name}': {e}")
 
     # Step 3: DDG broad search, filling in whatever's still missing
     if _still_missing(found):
+        before = dict(found)
         found = _merge_found(found, find_band_urls_via_ddg(band_name))
+        if found != before:
+            stats["ddg_bands_hit"] += 1
 
     result.instagram_url = found["instagram_url"]
     result.bandcamp_url = found["bandcamp_url"]
@@ -395,8 +491,12 @@ def lookup_band(band_name: str, sp) -> BandResult:
     spotify_url = found["spotify_url"]
 
     if result.bandcamp_url:
+        stats["bandcamp_urls_found"] += 1
         result.bandcamp_album_id = scrape_bandcamp_album_id(result.bandcamp_url)
-        log.debug(f"  Bandcamp album ID for '{band_name}': {result.bandcamp_album_id}")
+        if result.bandcamp_album_id:
+            stats["bandcamp_album_ids_scraped"] += 1
+        else:
+            log.debug(f"  Bandcamp album ID scrape failed for '{band_name}' ({result.bandcamp_url})")
 
     # Fetch Spotify artist data from the found URL
     if spotify_url:

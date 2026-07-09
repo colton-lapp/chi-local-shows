@@ -1,3 +1,4 @@
+import band_lookup
 from band_lookup import (
     build_google_urls,
     _extract_spotify_artist_id,
@@ -6,6 +7,7 @@ from band_lookup import (
     _merge_found,
     _google_cse_search,
     find_band_urls_via_google,
+    google_cse_configured,
     lookup_band,
 )
 
@@ -157,6 +159,41 @@ def test_find_band_urls_via_google_no_op_when_unconfigured(monkeypatch):
     assert find_band_urls_via_google("Some Band") == _no_social()
 
 
+def test_google_cse_configured_reflects_env(monkeypatch):
+    monkeypatch.delenv("GOOGLE_SEARCH_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_SEARCH_CX", raising=False)
+    assert google_cse_configured() is False
+    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
+    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
+    assert google_cse_configured() is True
+
+
+def test_google_cse_search_records_error_stats(monkeypatch, mocker):
+    band_lookup.reset_stats()
+    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
+    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
+    mocker.patch("band_lookup.requests.get", side_effect=Exception("boom"))
+    assert _google_cse_search("q") == []
+    assert band_lookup.stats["google_queries"] == 1
+    assert band_lookup.stats["google_errors"] == 1
+    assert "boom" in band_lookup.stats["google_last_error"]
+
+
+def test_google_cse_search_disables_after_repeated_errors(monkeypatch, mocker):
+    band_lookup.reset_stats()
+    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
+    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
+    get_mock = mocker.patch("band_lookup.requests.get", side_effect=Exception("boom"))
+    for _ in range(band_lookup._GOOGLE_CSE_MAX_ERRORS):
+        _google_cse_search("q")
+    assert band_lookup.stats["google_disabled_reason"] is not None
+    assert get_mock.call_count == band_lookup._GOOGLE_CSE_MAX_ERRORS
+
+    # Once disabled, further calls skip the request entirely for the rest of the run
+    _google_cse_search("q")
+    assert get_mock.call_count == band_lookup._GOOGLE_CSE_MAX_ERRORS
+
+
 def test_merge_found_fills_empty_fields_only():
     dst = {"spotify_url": "https://open.spotify.com/artist/ABC", "instagram_url": None,
            "bandcamp_url": None, "other_urls": []}
@@ -297,3 +334,54 @@ def test_lookup_band_merges_bing_and_ddg_when_google_finds_nothing(mocker):
     result = lookup_band("Some Band", sp=mocker.MagicMock())
     assert result.instagram_url == "https://instagram.com/theband"
     assert result.bandcamp_url == "https://theband.bandcamp.com"
+
+
+# ── stats tracking ────────────────────────────────────────────────────────────
+
+def test_lookup_band_records_google_hit_when_configured(monkeypatch, mocker):
+    band_lookup.reset_stats()
+    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
+    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
+    mocker.patch("band_lookup.find_band_urls_via_google", return_value={
+        "spotify_url": "https://open.spotify.com/artist/ABC123",
+        "instagram_url": None,
+        "bandcamp_url": None,
+        "other_urls": [],
+    })
+    mocker.patch("band_lookup.get_artist_data_from_spotify", return_value={
+        "_name": "Some Band", "spotify_id": "ABC123",
+        "spotify_url": "https://open.spotify.com/artist/ABC123",
+        "spotify_genres": [], "spotify_followers": 100, "spotify_popularity": 10,
+        "spotify_image_url": None,
+    })
+    lookup_band("Some Band", sp=mocker.MagicMock())
+    assert band_lookup.stats["google_bands_hit"] == 1
+    assert band_lookup.stats["bands_spotify_matched"] == 1
+    assert band_lookup.stats["bands_total"] == 1
+
+
+def test_lookup_band_no_google_hit_when_unconfigured(monkeypatch, mocker):
+    band_lookup.reset_stats()
+    monkeypatch.delenv("GOOGLE_SEARCH_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_SEARCH_CX", raising=False)
+    mocker.patch("band_lookup.find_band_urls_via_ddg", return_value=_no_social())
+    mocker.patch("browser.is_available", return_value=False)
+    mocker.patch("band_lookup.lookup_spotify_direct", return_value=None)
+    lookup_band("Some Band", sp=mocker.MagicMock())
+    assert band_lookup.stats["google_bands_hit"] == 0
+    assert band_lookup.stats["bands_not_found"] == 1
+
+
+def test_lookup_band_records_bandcamp_scrape_stats(mocker):
+    band_lookup.reset_stats()
+    mocker.patch("band_lookup.find_band_urls_via_google", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_ddg", return_value={
+        "spotify_url": None, "instagram_url": None,
+        "bandcamp_url": "https://theband.bandcamp.com", "other_urls": [],
+    })
+    mocker.patch("band_lookup.scrape_bandcamp_album_id", return_value=None)
+    mocker.patch("band_lookup.lookup_spotify_direct", return_value=None)
+    mocker.patch("browser.is_available", return_value=False)
+    lookup_band("The Band", sp=mocker.MagicMock())
+    assert band_lookup.stats["bandcamp_urls_found"] == 1
+    assert band_lookup.stats["bandcamp_album_ids_scraped"] == 0

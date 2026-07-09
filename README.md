@@ -26,7 +26,25 @@ uv add --group dev <pkg>  # add as dev-only dep (tests, linters)
 |---|---|
 | `OPENAI_API_KEY` | platform.openai.com |
 | `SPOTIPY_CLIENT_ID` / `SPOTIPY_CLIENT_SECRET` | developer.spotify.com → create an app |
-| `GOOGLE_SEARCH_API_KEY` / `GOOGLE_SEARCH_CX` (optional) | console.cloud.google.com (enable "Custom Search API") + programmablesearchengine.google.com (search the entire web) — free tier is 100 queries/day; band lookup falls back to Bing/DuckDuckGo automatically if unset |
+| `GOOGLE_SEARCH_API_KEY` / `GOOGLE_SEARCH_CX` (optional) | see below — free tier is 100 queries/day; band lookup falls back to Bing/DuckDuckGo automatically if unset |
+
+#### Setting up Google Custom Search (optional, for the Google band-link search tier)
+
+This is the only key that isn't a single-click signup, so here's the full path:
+
+1. **Create/select a Google Cloud project**: console.cloud.google.com → project picker (top left) → "New Project" (or reuse an existing one).
+2. **Enable the Custom Search API**: in that project, go to [console.cloud.google.com/apis/library/customsearch.googleapis.com](https://console.cloud.google.com/apis/library/customsearch.googleapis.com) and click **Enable**.
+3. **Create an API key**: console.cloud.google.com → APIs & Services → Credentials → **Create Credentials** → **API key**. Copy it — this is `GOOGLE_SEARCH_API_KEY`. (Optional: click "Restrict key" and limit it to the Custom Search API so it can't be used for anything else.)
+4. **Create a Programmable Search Engine**: go to [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) → **Add** → give it any name → under "What to search," choose **"Search the entire web"** (not a specific site) → **Create**.
+5. **Get the Search engine ID**: on the new search engine's overview/setup page, copy the "Search engine ID" — this is `GOOGLE_SEARCH_CX`.
+6. **Add both to `.env`** locally:
+   ```
+   GOOGLE_SEARCH_API_KEY=...
+   GOOGLE_SEARCH_CX=...
+   ```
+7. **Add both as GitHub Actions secrets** so the scheduled `fetch-and-publish.yml` workflow can use them: on GitHub, go to the repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → add `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_CX`. (`OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, and `SPOTIPY_CLIENT_SECRET` need to be set the same way if they aren't already.)
+
+Free tier is 100 queries/day (band lookup uses 1–2 queries per band). If unset, the pipeline automatically falls back to Bing/DuckDuckGo with no other changes needed — nothing breaks if you skip this.
 
 ## Usage
 

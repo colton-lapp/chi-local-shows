@@ -1,18 +1,22 @@
 """
 Band lookup: find a band's Spotify profile, social links, and related URLs.
 
-Search strategy (in order):
-  1. DuckDuckGo broad search: "{band}" chicago
+Search strategy (in order), each step only filling in fields the previous
+steps left empty:
+  1. Google Custom Search JSON API: "{band}" chicago band
      → classifies results into: Spotify artist URL, Instagram, Bandcamp, top-5 others
-     → if Spotify URL found: fetch artist data via Spotify API
-     → if no Spotify URL: targeted DDG retry for site:open.spotify.com/artist
-  2. Bing via Playwright headless browser (if DDG rate-limited or returns nothing)
-  3. Spotify API direct artist search (fallback, less Chicago-context-aware)
+     → requires GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX; silently skipped if unset
+     → if no Spotify URL: targeted retry for site:open.spotify.com/artist
+  2. Bing via Playwright headless browser (broad search, same classification)
+  3. DuckDuckGo broad search (last web-search fallback; the ddgs library is
+     the most prone to rate-limiting under repeated automated queries)
+  4. Spotify API direct artist search (fallback, less Chicago-context-aware)
 
 Google search URLs are always constructed as a manual fallback regardless of outcome.
 """
 import difflib
 import logging
+import os
 import re
 import time
 from urllib.parse import quote_plus, urljoin, urlparse
@@ -125,6 +129,63 @@ def _classify_results(results: list[dict]) -> dict:
             and _domain(url) not in _EXCLUDE_DOMAINS
         ):
             found["other_urls"].append(url)
+    return found
+
+
+def _merge_found(dst: dict, src: dict) -> dict:
+    """Fill empty fields in dst from src (later tiers only patch gaps). Mutates and returns dst."""
+    for key in ("spotify_url", "instagram_url", "bandcamp_url"):
+        if not dst.get(key) and src.get(key):
+            dst[key] = src[key]
+    if not dst.get("other_urls") and src.get("other_urls"):
+        dst["other_urls"] = src["other_urls"]
+    return dst
+
+
+def _google_cse_search(query: str, num_results: int = 10) -> list[dict]:
+    """
+    Run a Google Custom Search JSON API search. Returns [] on any error, or if
+    GOOGLE_SEARCH_API_KEY/GOOGLE_SEARCH_CX aren't configured (safe no-op).
+    """
+    api_key = os.environ.get("GOOGLE_SEARCH_API_KEY")
+    cx = os.environ.get("GOOGLE_SEARCH_CX")
+    if not api_key or not cx:
+        log.debug("Google CSE not configured (GOOGLE_SEARCH_API_KEY/GOOGLE_SEARCH_CX unset), skipping")
+        return []
+    try:
+        resp = requests.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params={"key": api_key, "cx": cx, "q": query, "num": num_results},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+        return [{"href": item["link"]} for item in items if item.get("link")]
+    except Exception as e:
+        log.debug(f"Google CSE search failed ({query!r}): {e}")
+        return []
+
+
+def find_band_urls_via_google(band_name: str) -> dict:
+    """
+    Run a broad Google search (via Custom Search JSON API) and extract Spotify,
+    Instagram, Bandcamp, and other URLs. If no Spotify URL surfaces, retries with
+    a targeted Spotify-specific query. Returns all-None fields if Google isn't
+    configured or the request fails — callers fall through to the next tier.
+    Returns {spotify_url, instagram_url, bandcamp_url, other_urls}.
+    """
+    results = _google_cse_search(f'"{band_name}" chicago band', num_results=8)
+    found = _classify_results(results)
+
+    # Targeted Spotify retry if broad search missed it
+    if not found["spotify_url"]:
+        sp_results = _google_cse_search(f"{band_name} site:open.spotify.com/artist", num_results=3)
+        for r in sp_results:
+            url = r.get("href", "")
+            if _extract_spotify_artist_id(url):
+                found["spotify_url"] = url
+                break
+
     return found
 
 
@@ -299,33 +360,43 @@ def lookup_band(band_name: str, sp) -> BandResult:
     """
     Master lookup. Always returns BandResult with Google URLs populated.
 
-    1. DDG broad search → Spotify URL + Instagram + Bandcamp + other URLs
-    2. Browser Bing search if DDG found no Spotify URL (Playwright)
-    3. Spotify API direct search as final fallback
+    1. Google Custom Search API → Spotify URL + Instagram + Bandcamp + other URLs
+       (no-op if GOOGLE_SEARCH_API_KEY/GOOGLE_SEARCH_CX aren't configured)
+    2. Bing via Playwright, filling in whatever Google didn't find
+    3. DDG broad search, filling in whatever's still missing after Google + Bing
+    4. Spotify API direct search as final fallback (if still no Spotify URL)
     sp can be None (Spotify auth failed) — social links and Google URLs still populated.
     """
     result = BandResult(name=band_name, **build_google_urls(band_name))
 
-    # Step 1: DDG → all social URLs
-    ddg = find_band_urls_via_ddg(band_name)
-    result.instagram_url = ddg["instagram_url"]
-    result.bandcamp_url = ddg["bandcamp_url"]
-    result.other_urls = ddg["other_urls"]
-    spotify_url = ddg["spotify_url"]
+    # Step 1: Google CSE → all social URLs
+    found = find_band_urls_via_google(band_name)
+
+    def _still_missing(f: dict) -> bool:
+        return not (f["spotify_url"] and f["instagram_url"] and f["bandcamp_url"])
+
+    # Step 2: Bing via Playwright, filling in whatever Google didn't find
+    if _still_missing(found):
+        try:
+            import browser
+            if browser.is_available():
+                log.debug(f"  Trying Bing browser search for '{band_name}'")
+                found = _merge_found(found, browser.search_bing_urls(band_name))
+        except Exception as e:
+            log.debug(f"  Bing browser search failed for '{band_name}': {e}")
+
+    # Step 3: DDG broad search, filling in whatever's still missing
+    if _still_missing(found):
+        found = _merge_found(found, find_band_urls_via_ddg(band_name))
+
+    result.instagram_url = found["instagram_url"]
+    result.bandcamp_url = found["bandcamp_url"]
+    result.other_urls = found["other_urls"]
+    spotify_url = found["spotify_url"]
 
     if result.bandcamp_url:
         result.bandcamp_album_id = scrape_bandcamp_album_id(result.bandcamp_url)
         log.debug(f"  Bandcamp album ID for '{band_name}': {result.bandcamp_album_id}")
-
-    # Step 2: Browser Bing search if DDG found no Spotify URL
-    if not spotify_url:
-        try:
-            import browser
-            if browser.is_available():
-                log.debug(f"  Trying browser search for '{band_name}'")
-                spotify_url = browser.search_for_spotify_url(band_name)
-        except Exception as e:
-            log.debug(f"  Browser search failed for '{band_name}': {e}")
 
     # Fetch Spotify artist data from the found URL
     if spotify_url:
@@ -338,7 +409,7 @@ def lookup_band(band_name: str, sp) -> BandResult:
                 genres = data.get("spotify_genres", [])
                 score = _match_score(band_name, fetched_name, followers, genres)
                 if score is None or score < _MATCH_ACCEPT_SCORE:
-                    log.debug(f"  Rejecting DDG Spotify match '{fetched_name}' (score={score}) for '{band_name}'")
+                    log.debug(f"  Rejecting Spotify match '{fetched_name}' (score={score}) for '{band_name}'")
                     spotify_url = None  # fall through to direct API search
                 else:
                     return _apply_spotify_data(result, data)
@@ -348,7 +419,7 @@ def lookup_band(band_name: str, sp) -> BandResult:
             result.lookup_status = "done"
             return result
 
-    # Step 3: Spotify API direct search fallback
+    # Step 4: Spotify API direct search fallback
     if sp:
         data = lookup_spotify_direct(band_name, sp)
         if data:

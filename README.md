@@ -1,6 +1,6 @@
 # Chi Local Shows
 
-Automated Chicago local show discovery. Scrapes venue event pages with LLM extraction, finds bands on Spotify via contextual Google/Bing search, and stores everything in a local SQLite database.
+Automated Chicago local show discovery. Scrapes venue event pages with LLM extraction, finds bands on Spotify via contextual Google/Bing/DuckDuckGo search, and stores everything in a local SQLite database.
 
 ## Setup
 
@@ -26,6 +26,25 @@ uv add --group dev <pkg>  # add as dev-only dep (tests, linters)
 |---|---|
 | `OPENAI_API_KEY` | platform.openai.com |
 | `SPOTIPY_CLIENT_ID` / `SPOTIPY_CLIENT_SECRET` | developer.spotify.com → create an app |
+| `GOOGLE_SEARCH_API_KEY` / `GOOGLE_SEARCH_CX` (optional) | see below — free tier is 100 queries/day; band lookup falls back to Bing/DuckDuckGo automatically if unset |
+
+#### Setting up Google Custom Search (optional, for the Google band-link search tier)
+
+This is the only key that isn't a single-click signup, so here's the full path:
+
+1. **Create/select a Google Cloud project**: console.cloud.google.com → project picker (top left) → "New Project" (or reuse an existing one).
+2. **Enable the Custom Search API**: in that project, go to [console.cloud.google.com/apis/library/customsearch.googleapis.com](https://console.cloud.google.com/apis/library/customsearch.googleapis.com) and click **Enable**.
+3. **Create an API key**: console.cloud.google.com → APIs & Services → Credentials → **Create Credentials** → **API key**. Copy it — this is `GOOGLE_SEARCH_API_KEY`. (Optional: click "Restrict key" and limit it to the Custom Search API so it can't be used for anything else.)
+4. **Create a Programmable Search Engine**: go to [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) → **Add** → give it any name → under "What to search," choose **"Search the entire web"** (not a specific site) → **Create**.
+5. **Get the Search engine ID**: on the new search engine's overview/setup page, copy the "Search engine ID" — this is `GOOGLE_SEARCH_CX`.
+6. **Add both to `.env`** locally:
+   ```
+   GOOGLE_SEARCH_API_KEY=...
+   GOOGLE_SEARCH_CX=...
+   ```
+7. **Add both as GitHub Actions secrets** so the scheduled `fetch-and-publish.yml` workflow can use them: on GitHub, go to the repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → add `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_CX`. (`OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, and `SPOTIPY_CLIENT_SECRET` need to be set the same way if they aren't already.)
+
+Free tier is 100 queries/day (band lookup uses 1–2 queries per band). If unset, the pipeline automatically falls back to Bing/DuckDuckGo with no other changes needed — nothing breaks if you skip this.
 
 ## Usage
 
@@ -55,12 +74,13 @@ For each active venue in `venues.json`:
 
 ### Phase 2 — Band lookup
 
-For each new band:
-1. **DuckDuckGo**: `"band name" site:open.spotify.com/artist chicago`
-2. **Bing via Playwright**: headless browser search (fallback when DDG rate-limits)
-3. **Spotify API direct search**: broadest fallback
-4. Once a Spotify URL is found: pull genres, followers, popularity, image via Spotify API
-5. Google search URLs are always generated regardless of outcome (manual fallback)
+For each new band, each step only filling in whatever the previous steps didn't find:
+1. **Google Custom Search API**: `"band name" chicago band` (skipped automatically if `GOOGLE_SEARCH_API_KEY`/`GOOGLE_SEARCH_CX` aren't set)
+2. **Bing via Playwright**: headless browser search
+3. **DuckDuckGo**: last web-search fallback (the `ddgs` library is the most prone to rate-limiting under repeated automated queries)
+4. **Spotify API direct search**: broadest fallback, if still no Spotify URL
+5. Once a Spotify URL is found: pull genres, followers, popularity, image via Spotify API
+6. Google search URLs are always generated regardless of outcome (manual fallback for humans)
 
 ## Adding Venues
 
@@ -94,11 +114,11 @@ Before shipping any change, verify these gates pass in order:
 ### 1. Unit tests (no API keys needed)
 ```sh
 task test
-# Expected: 36 passed
+# Expected: 55 passed
 ```
 
 What's covered:
-- `test_band_lookup.py` — URL building, `_classify_results` bucketing (Spotify/Instagram/Bandcamp/other/search-engine exclusions), `lookup_band` flows (DDG hit, all-fail, Instagram-only, Bandcamp-only, no Spotify client)
+- `test_band_lookup.py` — URL building, `_classify_results` bucketing (Spotify/Instagram/Bandcamp/other/search-engine exclusions), Google CSE search (no-op when unconfigured, item parsing), `_merge_found` gap-filling, `lookup_band` flows (Google hit skips Bing/DDG, Bing+DDG merge, DDG hit, all-fail, Instagram-only, Bandcamp-only, no Spotify client)
 - `test_db.py` — venue upsert, show insert deduplication, band get-or-create, `update_band_lookup`, `get_bands_needing_lookup` with retry flag, show-band linking, scrape log
 - `test_generic_scraper.py` — LLM path, requests fallback to Playwright, empty event_urls early return, fetch error handling, date filtering
 
@@ -141,7 +161,7 @@ task fetch -- --venue "Empty Bottle"
 fetch.py               main runner (2 phases: scrape → lookup)
 db.py                  SQLite schema + query helpers
 models.py              ShowResult, BandResult dataclasses
-band_lookup.py         DDG + browser + Spotify API band lookup
+band_lookup.py         Google CSE + browser + DDG + Spotify API band lookup
 browser.py             Playwright headless browser utilities
 venues.json            venue configuration
 venue_scrapers/

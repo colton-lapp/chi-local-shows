@@ -3,7 +3,9 @@ Headless Chromium utilities via Playwright.
 
 Used for:
 - Venue pages that are JS-rendered (React/Vue/etc.) and return empty content with requests
-- More reliable web searches when duckduckgo-search library hits rate limits
+- A broad Bing search (Spotify/Instagram/Bandcamp) — more bot-tolerant than scraping
+  Google directly, and more reliable than the duckduckgo-search library, which is
+  prone to rate limits under repeated automated queries
 
 Playwright must be installed: `task install` (or `uv run playwright install chromium`)
 """
@@ -61,19 +63,11 @@ def fetch_html(url: str) -> str:
     return _clean_html(html)
 
 
-def search_for_spotify_url(band_name: str) -> str | None:
-    """
-    Use headless Chromium to search for a band's Spotify artist page.
-    Returns the Spotify artist URL if found, else None.
-
-    More reliable than DuckDuckGo library when rate-limited.
-    Uses Bing (less bot-hostile than Google for automated search).
-    """
+def _bing_search_links(query: str) -> list[str]:
+    """Run a Bing search via headless Chromium and return every result link href."""
     from urllib.parse import quote_plus
     from playwright.sync_api import sync_playwright
-    import re
 
-    query = f'"{band_name}" site:open.spotify.com/artist chicago'
     search_url = f"https://www.bing.com/search?q={quote_plus(query)}"
 
     with sync_playwright() as p:
@@ -83,17 +77,33 @@ def search_for_spotify_url(band_name: str) -> str | None:
         )
         try:
             page.goto(search_url, wait_until="domcontentloaded", timeout=TIMEOUT_MS)
-            # Extract all href attributes and look for Spotify artist URLs
-            links = page.eval_on_selector_all(
-                "a[href*='open.spotify.com/artist']",
-                "els => els.map(e => e.href)",
-            )
+            links = page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)")
         finally:
             browser.close()
 
-    for link in links:
-        match = re.search(r"open\.spotify\.com/artist/[A-Za-z0-9]+", link)
-        if match:
-            return f"https://{match.group(0)}"
+    return links
 
-    return None
+
+def search_bing_urls(band_name: str) -> dict:
+    """
+    Use headless Chromium to run a broad Bing search and extract Spotify,
+    Instagram, Bandcamp, and other URLs, same classification as the Google/DDG
+    search tiers. If no Spotify URL surfaces, retries with a targeted query.
+    Returns {spotify_url, instagram_url, bandcamp_url, other_urls}.
+
+    Uses Bing (less bot-hostile than Google for automated search) and is more
+    reliable than the duckduckgo-search library when it's rate-limited.
+    """
+    from band_lookup import _classify_results, _extract_spotify_artist_id
+
+    links = _bing_search_links(f'"{band_name}" chicago band')
+    found = _classify_results([{"href": link} for link in links])
+
+    if not found["spotify_url"]:
+        sp_links = _bing_search_links(f'"{band_name}" site:open.spotify.com/artist chicago')
+        for link in sp_links:
+            if _extract_spotify_artist_id(link):
+                found["spotify_url"] = link
+                break
+
+    return found

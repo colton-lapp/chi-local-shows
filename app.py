@@ -15,7 +15,7 @@ from pathlib import Path
 import db
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-DAYS = 14
+DAYS = 7
 STATIC_DIR = Path(__file__).parent / "static"
 
 _VENUES_JSON = Path(__file__).parent / "venues.json"

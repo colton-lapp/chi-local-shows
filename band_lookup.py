@@ -3,9 +3,9 @@ Band lookup: find a band's Spotify profile, social links, and related URLs.
 
 Search strategy (in order), each step only filling in fields the previous
 steps left empty:
-  1. Google Custom Search JSON API: "{band}" chicago band
+  1. Serper (Google search results as JSON): "{band}" chicago band
      → classifies results into: Spotify artist URL, Instagram, Bandcamp, top-5 others
-     → requires GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX; silently skipped if unset
+     → requires SERPER_API_KEY; silently skipped if unset
      → if no Spotify URL: targeted retry for site:open.spotify.com/artist
   2. Bing via Playwright headless browser (broad search, same classification)
   3. DuckDuckGo broad search (last web-search fallback; the ddgs library is
@@ -42,19 +42,19 @@ _SCRAPE_HEADERS = {
 # Domains excluded from other_urls (pure search/utility noise)
 _EXCLUDE_DOMAINS = {"google.com", "bing.com", "duckduckgo.com", "yahoo.com"}
 
-# After this many Google CSE errors in a single run, stop calling it (the
-# failure is almost always systemic — bad key, API not enabled, no quota —
-# not per-band, so retrying 100+ more times just burns the run's time budget).
-_GOOGLE_CSE_MAX_ERRORS = 3
+# After this many Serper errors in a single run, stop calling it (the
+# failure is almost always systemic — bad key, no quota — not per-band, so
+# retrying 100+ more times just burns the run's time budget).
+_SERPER_MAX_ERRORS = 3
 
 
 def _new_stats() -> dict:
     return {
-        "google_queries": 0,
-        "google_errors": 0,
-        "google_last_error": None,
-        "google_disabled_reason": None,
-        "google_bands_hit": 0,
+        "serper_queries": 0,
+        "serper_errors": 0,
+        "serper_last_error": None,
+        "serper_disabled_reason": None,
+        "serper_bands_hit": 0,
         "bing_attempts": 0,
         "bing_errors": 0,
         "bing_bands_hit": 0,
@@ -83,8 +83,8 @@ def get_stats() -> dict:
     return dict(stats)
 
 
-def google_cse_configured() -> bool:
-    return bool(os.environ.get("GOOGLE_SEARCH_API_KEY")) and bool(os.environ.get("GOOGLE_SEARCH_CX"))
+def serper_configured() -> bool:
+    return bool(os.environ.get("SERPER_API_KEY"))
 
 
 def build_google_urls(band_name: str) -> dict:
@@ -186,12 +186,28 @@ def _ddg_search(query: str, num_results: int = 15) -> list[dict]:
         return []
 
 
+# (url field, snippet field, image field) — snippet/image are None for tiers
+# (Bing, DDG) whose result dicts don't carry that info; only Serper's do.
+_URL_FIELDS = [
+    ("spotify_url", None, None),
+    ("instagram_url", "instagram_snippet", "instagram_image"),
+    ("bandcamp_url", "bandcamp_snippet", "bandcamp_image"),
+]
+
+
 def _classify_results(results: list[dict]) -> dict:
     """
     Walk search result URLs and bucket into: spotify_url, instagram_url,
     bandcamp_url, and up to 5 other_urls. Stops filling each bucket once found.
+    When a result dict carries "snippet"/"image" (Serper only), captures those
+    alongside the matched Instagram/Bandcamp URL for display as a link preview.
     """
-    found: dict = {"spotify_url": None, "instagram_url": None, "bandcamp_url": None, "other_urls": []}
+    found: dict = {
+        "spotify_url": None,
+        "instagram_url": None, "instagram_snippet": None, "instagram_image": None,
+        "bandcamp_url": None, "bandcamp_snippet": None, "bandcamp_image": None,
+        "other_urls": [],
+    }
     for r in results:
         url = r.get("href", "")
         if not url:
@@ -200,8 +216,12 @@ def _classify_results(results: list[dict]) -> dict:
             found["spotify_url"] = url
         elif "instagram.com" in url and not found["instagram_url"]:
             found["instagram_url"] = url
+            found["instagram_snippet"] = r.get("snippet")
+            found["instagram_image"] = r.get("image")
         elif "bandcamp.com" in url and not found["bandcamp_url"]:
             found["bandcamp_url"] = url
+            found["bandcamp_snippet"] = r.get("snippet")
+            found["bandcamp_image"] = r.get("image")
         elif (
             len(found["other_urls"]) < 5
             and not any(d in url for d in ("spotify.com", "instagram.com", "bandcamp.com"))
@@ -213,78 +233,83 @@ def _classify_results(results: list[dict]) -> dict:
 
 def _merge_found(dst: dict, src: dict) -> dict:
     """Fill empty fields in dst from src (later tiers only patch gaps). Mutates and returns dst."""
-    for key in ("spotify_url", "instagram_url", "bandcamp_url"):
-        if not dst.get(key) and src.get(key):
-            dst[key] = src[key]
+    for url_key, snippet_key, image_key in _URL_FIELDS:
+        if not dst.get(url_key) and src.get(url_key):
+            dst[url_key] = src[url_key]
+            if snippet_key:
+                dst[snippet_key] = src.get(snippet_key)
+            if image_key:
+                dst[image_key] = src.get(image_key)
     if not dst.get("other_urls") and src.get("other_urls"):
         dst["other_urls"] = src["other_urls"]
     return dst
 
 
-def _google_cse_search(query: str, num_results: int = 10) -> list[dict]:
+def _serper_search(query: str, num_results: int = 10) -> list[dict]:
     """
-    Run a Google Custom Search JSON API search. Returns [] on any error, or if
-    GOOGLE_SEARCH_API_KEY/GOOGLE_SEARCH_CX aren't configured (safe no-op).
+    Run a Serper (Google search results as JSON) search. Returns [] on any
+    error, or if SERPER_API_KEY isn't configured (safe no-op).
 
-    After _GOOGLE_CSE_MAX_ERRORS failures in a run, stops calling the API
-    entirely (logged once at warning) — a broken key/quota/API-enablement
-    issue fails the same way for every band, so there's no point burning the
-    rest of the 100+ band run retrying a dead endpoint.
+    After _SERPER_MAX_ERRORS failures in a run, stops calling the API
+    entirely (logged once at warning) — a broken key/quota issue fails the
+    same way for every band, so there's no point burning the rest of the
+    100+ band run retrying a dead endpoint.
     """
-    api_key = os.environ.get("GOOGLE_SEARCH_API_KEY")
-    cx = os.environ.get("GOOGLE_SEARCH_CX")
-    if not api_key or not cx:
+    api_key = os.environ.get("SERPER_API_KEY")
+    if not api_key:
         return []
 
-    if stats["google_disabled_reason"]:
+    if stats["serper_disabled_reason"]:
         return []
 
-    stats["google_queries"] += 1
+    stats["serper_queries"] += 1
     try:
-        resp = requests.get(
-            "https://www.googleapis.com/customsearch/v1",
-            params={"key": api_key, "cx": cx, "q": query, "num": num_results},
+        resp = requests.post(
+            "https://google.serper.dev/search",
+            headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+            json={"q": query, "num": num_results},
             timeout=10,
         )
         resp.raise_for_status()
-        items = resp.json().get("items", [])
-        return [{"href": item["link"]} for item in items if item.get("link")]
+        items = resp.json().get("organic", [])
+        return [
+            {"href": item["link"], "snippet": item.get("snippet"), "image": item.get("imageUrl")}
+            for item in items if item.get("link")
+        ]
     except Exception as e:
-        stats["google_errors"] += 1
+        stats["serper_errors"] += 1
         body = ""
         resp_obj = getattr(e, "response", None)
         if resp_obj is not None:
             body = f" | response: {resp_obj.text[:300]}"
         detail = f"{e}{body}"
-        stats["google_last_error"] = detail
-        log.warning(f"Google CSE search failed ({query!r}): {detail}")
-        if stats["google_errors"] >= _GOOGLE_CSE_MAX_ERRORS:
-            stats["google_disabled_reason"] = detail
+        stats["serper_last_error"] = detail
+        log.warning(f"Serper search failed ({query!r}): {detail}")
+        if stats["serper_errors"] >= _SERPER_MAX_ERRORS:
+            stats["serper_disabled_reason"] = detail
             log.warning(
-                f"Google CSE failed {stats['google_errors']} times this run — disabling it for "
+                f"Serper failed {stats['serper_errors']} times this run — disabling it for "
                 "the rest of this run (falling back to Bing/DDG for remaining bands). Likely "
-                "causes: API key is HTTP-referrer-restricted (server-side calls need an "
-                "unrestricted or IP-restricted key, not the one from the cse.js embed snippet), "
-                "'Custom Search API' isn't enabled on the key's Cloud project, or the daily "
-                "query quota is exhausted."
+                "causes: SERPER_API_KEY is wrong/revoked, or the free-tier query balance is "
+                "exhausted (check serper.dev/dashboard)."
             )
         return []
 
 
-def find_band_urls_via_google(band_name: str) -> dict:
+def find_band_urls_via_serper(band_name: str) -> dict:
     """
-    Run a broad Google search (via Custom Search JSON API) and extract Spotify,
-    Instagram, Bandcamp, and other URLs. If no Spotify URL surfaces, retries with
-    a targeted Spotify-specific query. Returns all-None fields if Google isn't
-    configured or the request fails — callers fall through to the next tier.
+    Run a broad web search via Serper and extract Spotify, Instagram, Bandcamp,
+    and other URLs. If no Spotify URL surfaces, retries with a targeted
+    Spotify-specific query. Returns all-None fields if Serper isn't configured
+    or the request fails — callers fall through to the next tier.
     Returns {spotify_url, instagram_url, bandcamp_url, other_urls}.
     """
-    results = _google_cse_search(f'"{band_name}" chicago band', num_results=8)
+    results = _serper_search(f'"{band_name}" chicago band', num_results=8)
     found = _classify_results(results)
 
     # Targeted Spotify retry if broad search missed it
     if not found["spotify_url"]:
-        sp_results = _google_cse_search(f"{band_name} site:open.spotify.com/artist", num_results=3)
+        sp_results = _serper_search(f"{band_name} site:open.spotify.com/artist", num_results=3)
         for r in sp_results:
             url = r.get("href", "")
             if _extract_spotify_artist_id(url):
@@ -476,10 +501,10 @@ def _lookup_band_impl(band_name: str, sp) -> BandResult:
     """
     Master lookup. Always returns BandResult with Google URLs populated.
 
-    1. Google Custom Search API → Spotify URL + Instagram + Bandcamp + other URLs
-       (no-op if GOOGLE_SEARCH_API_KEY/GOOGLE_SEARCH_CX aren't configured)
-    2. Bing via Playwright, filling in whatever Google didn't find
-    3. DDG broad search, filling in whatever's still missing after Google + Bing
+    1. Serper (Google search results as JSON) → Spotify URL + Instagram + Bandcamp + other URLs
+       (no-op if SERPER_API_KEY isn't configured)
+    2. Bing via Playwright, filling in whatever Serper didn't find
+    3. DDG broad search, filling in whatever's still missing after Serper + Bing
     4. Spotify API direct search as final fallback (if still no Spotify URL)
     sp can be None (Spotify auth failed) — social links and Google URLs still populated.
     """
@@ -492,12 +517,12 @@ def _lookup_band_impl(band_name: str, sp) -> BandResult:
     def _still_missing(f: dict) -> bool:
         return not (f["spotify_url"] and f["instagram_url"] and f["bandcamp_url"])
 
-    # Step 1: Google CSE → all social URLs
-    found = find_band_urls_via_google(band_name)
-    if google_cse_configured() and _any_found(found):
-        stats["google_bands_hit"] += 1
+    # Step 1: Serper → all social URLs
+    found = find_band_urls_via_serper(band_name)
+    if serper_configured() and _any_found(found):
+        stats["serper_bands_hit"] += 1
 
-    # Step 2: Bing via Playwright, filling in whatever Google didn't find
+    # Step 2: Bing via Playwright, filling in whatever Serper didn't find
     if _still_missing(found):
         try:
             import browser
@@ -520,7 +545,11 @@ def _lookup_band_impl(band_name: str, sp) -> BandResult:
             stats["ddg_bands_hit"] += 1
 
     result.instagram_url = found["instagram_url"]
+    result.instagram_snippet = found.get("instagram_snippet")
+    result.instagram_image_url = found.get("instagram_image")
     result.bandcamp_url = found["bandcamp_url"]
+    result.bandcamp_snippet = found.get("bandcamp_snippet")
+    result.bandcamp_image_url = found.get("bandcamp_image")
     result.other_urls = found["other_urls"]
     spotify_url = found["spotify_url"]
 

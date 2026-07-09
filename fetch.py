@@ -150,12 +150,12 @@ def run(
         log.info("No bands need lookup")
         return
 
-    if band_lookup.google_cse_configured():
-        log.info("Google Custom Search: configured (GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX set)")
+    if band_lookup.serper_configured():
+        log.info("Serper: configured (SERPER_API_KEY set)")
     else:
         log.info(
-            "Google Custom Search: not configured — set GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX "
-            "to enable it. Falling back to Bing/DuckDuckGo only."
+            "Serper: not configured — set SERPER_API_KEY to enable it. "
+            "Falling back to Bing/DuckDuckGo only."
         )
     band_lookup.reset_stats()
 
@@ -194,14 +194,14 @@ def _log_lookup_summary() -> None:
     if total == 0:
         return
 
-    google_configured = band_lookup.google_cse_configured()
+    serper_configured = band_lookup.serper_configured()
     log.info(
         f"Lookup summary: {total} band(s) — "
         f"{s['bands_spotify_matched']} matched on Spotify, {s['bands_not_found']} not found"
     )
     log.info(
-        f"  Google CSE: {'configured' if google_configured else 'not configured'}, "
-        f"{s['google_queries']} queries, {s['google_errors']} errors, {s['google_bands_hit']} band(s) hit"
+        f"  Serper: {'configured' if serper_configured else 'not configured'}, "
+        f"{s['serper_queries']} queries, {s['serper_errors']} errors, {s['serper_bands_hit']} band(s) hit"
     )
     log.info(f"  Bing: {s['bing_attempts']} attempts, {s['bing_errors']} errors, {s['bing_bands_hit']} band(s) hit")
     log.info(f"  DDG: {s['ddg_errors']} errors, {s['ddg_bands_hit']} band(s) hit")
@@ -210,13 +210,13 @@ def _log_lookup_summary() -> None:
         f"{s['bandcamp_album_ids_scraped']} album ID(s) scraped"
     )
 
-    if google_configured and s["google_queries"] > 0 and s["google_bands_hit"] == 0:
+    if serper_configured and s["serper_queries"] > 0 and s["serper_bands_hit"] == 0:
         log.warning(
-            "Google CSE ran queries but never contributed a hit this run — likely misconfigured "
-            "(wrong CX, API not enabled, or a restricted key) even if no request errors were raised."
+            "Serper ran queries but never contributed a hit this run — likely misconfigured "
+            "(wrong/revoked key) even if no request errors were raised."
         )
-    if s["google_disabled_reason"]:
-        log.warning(f"Google CSE was disabled mid-run after repeated errors: {s['google_last_error']}")
+    if s["serper_disabled_reason"]:
+        log.warning(f"Serper was disabled mid-run after repeated errors: {s['serper_last_error']}")
     if s["bandcamp_urls_found"] > 0 and s["bandcamp_album_ids_scraped"] == 0:
         log.warning(
             f"Found {s['bandcamp_urls_found']} Bandcamp URL(s) but scraped 0 album IDs — "

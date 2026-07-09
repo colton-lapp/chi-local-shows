@@ -26,30 +26,25 @@ uv add --group dev <pkg>  # add as dev-only dep (tests, linters)
 |---|---|
 | `OPENAI_API_KEY` | platform.openai.com |
 | `SPOTIPY_CLIENT_ID` / `SPOTIPY_CLIENT_SECRET` | developer.spotify.com → create an app |
-| `GOOGLE_SEARCH_API_KEY` / `GOOGLE_SEARCH_CX` (optional) | see below — free tier is 100 queries/day; band lookup falls back to Bing/DuckDuckGo automatically if unset |
+| `SERPER_API_KEY` (optional) | see below — 2,500 free queries, then ~$1/1,000; band lookup falls back to Bing/DuckDuckGo automatically if unset |
 
-#### Setting up Google Custom Search (optional, for the Google band-link search tier)
+#### Setting up Serper (optional, for the Google-results band-link search tier)
 
-This is the only key that isn't a single-click signup, so here's the full path:
+> Google's own Custom Search JSON API is closed to new signups and shuts down entirely on Jan 1, 2027, so this pipeline uses [Serper](https://serper.dev) instead — it returns the same Google search results as JSON, with a much simpler setup (one API key, no Cloud project/billing/search-engine dance).
 
-1. **Create/select a Google Cloud project**: console.cloud.google.com → project picker (top left) → "New Project" (or reuse an existing one).
-2. **Enable the Custom Search API**: in that project, go to [console.cloud.google.com/apis/library/customsearch.googleapis.com](https://console.cloud.google.com/apis/library/customsearch.googleapis.com) and click **Enable**.
-3. **Create an API key**: console.cloud.google.com → APIs & Services → Credentials → **Create Credentials** → **API key**. Copy it — this is `GOOGLE_SEARCH_API_KEY`. (Optional: click "Restrict key" and limit it to the Custom Search API so it can't be used for anything else.)
-4. **Create a Programmable Search Engine**: go to [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) → **Add** → give it any name → under "What to search," choose **"Search the entire web"** (not a specific site) → **Create**.
-5. **Get the Search engine ID**: on the new search engine's overview/setup page, copy the "Search engine ID" — this is `GOOGLE_SEARCH_CX`.
-6. **Add both to `.env`** locally:
+1. **Sign up**: [serper.dev/signup](https://serper.dev/signup) (no credit card required).
+2. **Copy your API key** from the dashboard — this is `SERPER_API_KEY`.
+3. **Add it to `.env`** locally:
    ```
-   GOOGLE_SEARCH_API_KEY=...
-   GOOGLE_SEARCH_CX=...
+   SERPER_API_KEY=...
    ```
-7. **Add both as GitHub Actions secrets** so the scheduled `fetch-and-publish.yml` workflow can use them: on GitHub, go to the repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → add `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_CX`. (`OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, and `SPOTIPY_CLIENT_SECRET` need to be set the same way if they aren't already.)
+4. **Add it as a GitHub Actions secret** so the scheduled `fetch-and-publish.yml` workflow can use it: on GitHub, go to the repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → add `SERPER_API_KEY`. (`OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, and `SPOTIPY_CLIENT_SECRET` need to be set the same way if they aren't already.)
 
-Free tier is 100 queries/day (band lookup uses 1–2 queries per band). If unset, the pipeline automatically falls back to Bing/DuckDuckGo with no other changes needed — nothing breaks if you skip this.
+2,500 free queries on signup, then paid tiers starting at ~$1/1,000 queries (band lookup uses 1–2 queries per band). If unset, the pipeline automatically falls back to Bing/DuckDuckGo with no other changes needed — nothing breaks if you skip this.
 
 **Troubleshooting:**
-- **"Search the entire web" isn't offered when creating the engine** — Google's setup flow sometimes forces you to enter specific sites first. That's fine: since band lookup only ever extracts Spotify/Instagram/Bandcamp links anyway, restrict the engine to `open.spotify.com`, `instagram.com`, and `bandcamp.com` and it'll work the same for this use case (you'll just get `[]` for `other_urls` from the Google tier — Bing/DDG still populate those). If you do want "search entire web," it's usually a toggle on the engine's **Setup → Basics** page after creation, not just at creation time.
-- **A key copied from the `<script src="https://cse.google.com/cse.js?cx=...">` embed snippet is not the same as `GOOGLE_SEARCH_API_KEY`.** That snippet is the free client-side widget and needs no API key at all. `GOOGLE_SEARCH_API_KEY` must come from Cloud Console → APIs & Services → Credentials, and if it has an "HTTP referrers" application restriction (common for keys meant for browser widgets), server-side calls from `fetch.py`/GitHub Actions will get a 403 with no `Referer` header. Leave the key unrestricted (or restrict it to the Custom Search API only, not by referrer).
-- Check the run logs: `fetch.py` now logs whether Google CSE is configured at the start of the lookup phase, and prints a summary at the end (queries/errors/hits per tier, Bandcamp URLs found vs. album IDs scraped). If Google shows `0 errors, 0 band(s) hit` after several queries, that's a strong signal of a CX/key misconfiguration rather than a code bug.
+- Check the run logs: `fetch.py` now logs whether Serper is configured at the start of the lookup phase, and prints a summary at the end (queries/errors/hits per tier, Bandcamp URLs found vs. album IDs scraped). If Serper shows `0 errors, 0 band(s) hit` after several queries, that's a strong signal of a key/quota problem rather than a code bug.
+- A 403/401 almost always means the key was mistyped, revoked, or the free query balance ran out — check [serper.dev/dashboard](https://serper.dev/dashboard).
 
 ## Usage
 
@@ -80,7 +75,7 @@ For each active venue in `venues.json`:
 ### Phase 2 — Band lookup
 
 For each new band, each step only filling in whatever the previous steps didn't find:
-1. **Google Custom Search API**: `"band name" chicago band` (skipped automatically if `GOOGLE_SEARCH_API_KEY`/`GOOGLE_SEARCH_CX` aren't set)
+1. **Serper** (Google search results as JSON): `"band name" chicago band` (skipped automatically if `SERPER_API_KEY` isn't set). When Serper finds the Instagram/Bandcamp link, it also captures the result's blurb and thumbnail — the site renders those as a small preview card instead of a plain button. Links found via Bing/DDG don't carry a blurb, so they render as a plain link (never breaks, just plainer).
 2. **Bing via Playwright**: headless browser search
 3. **DuckDuckGo**: last web-search fallback (the `ddgs` library is the most prone to rate-limiting under repeated automated queries)
 4. **Spotify API direct search**: broadest fallback, if still no Spotify URL

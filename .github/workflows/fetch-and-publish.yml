@@ -2,8 +2,7 @@ name: Fetch shows and publish
 
 on:
   schedule:
-    - cron: '0 10 * * 0,3'   # twice weekly — Sunday & Wednesday 10 am UTC (keeps each
-                              # run's band backlog under the Google Search API's 100/day cap)
+    - cron: '0 10 * * 0'   # weekly — Sunday 10 am UTC
   workflow_dispatch:         # manual trigger from GitHub UI
 
 jobs:
@@ -28,8 +27,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SPOTIPY_CLIENT_ID: ${{ secrets.SPOTIPY_CLIENT_ID }}
           SPOTIPY_CLIENT_SECRET: ${{ secrets.SPOTIPY_CLIENT_SECRET }}
-          GOOGLE_SEARCH_API_KEY: ${{ secrets.GOOGLE_SEARCH_API_KEY }}
-          GOOGLE_SEARCH_CX: ${{ secrets.GOOGLE_SEARCH_CX }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
 
       - name: Export data cache
         run: uv run python cache.py export

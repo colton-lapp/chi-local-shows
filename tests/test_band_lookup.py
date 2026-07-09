@@ -5,9 +5,9 @@ from band_lookup import (
     _classify_results,
     _match_score,
     _merge_found,
-    _google_cse_search,
-    find_band_urls_via_google,
-    google_cse_configured,
+    _serper_search,
+    find_band_urls_via_serper,
+    serper_configured,
     scrape_bandcamp_album_id,
     lookup_band,
 )
@@ -219,67 +219,60 @@ def test_match_score_exact_match_with_foreign_genre_alone_still_accepted():
     assert score >= 2
 
 
-# ── Google CSE / _merge_found ───────────────────────────────────────────────────
+# ── Serper / _merge_found ───────────────────────────────────────────────────
 
 def _no_social():
     return {"spotify_url": None, "instagram_url": None, "bandcamp_url": None, "other_urls": []}
 
 
-def test_google_cse_search_returns_empty_when_unconfigured(monkeypatch):
-    monkeypatch.delenv("GOOGLE_SEARCH_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_SEARCH_CX", raising=False)
-    assert _google_cse_search("some query") == []
+def test_serper_search_returns_empty_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    assert _serper_search("some query") == []
 
 
-def test_google_cse_search_parses_items(monkeypatch, mocker):
-    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
-    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
+def test_serper_search_parses_items(monkeypatch, mocker):
+    monkeypatch.setenv("SERPER_API_KEY", "key")
     mock_resp = mocker.MagicMock()
-    mock_resp.json.return_value = {"items": [{"link": "https://open.spotify.com/artist/ABC123"}]}
-    mocker.patch("band_lookup.requests.get", return_value=mock_resp)
-    results = _google_cse_search("some query")
+    mock_resp.json.return_value = {"organic": [{"link": "https://open.spotify.com/artist/ABC123"}]}
+    mocker.patch("band_lookup.requests.post", return_value=mock_resp)
+    results = _serper_search("some query")
     assert results == [{"href": "https://open.spotify.com/artist/ABC123"}]
 
 
-def test_find_band_urls_via_google_no_op_when_unconfigured(monkeypatch):
-    monkeypatch.delenv("GOOGLE_SEARCH_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_SEARCH_CX", raising=False)
-    assert find_band_urls_via_google("Some Band") == _no_social()
+def test_find_band_urls_via_serper_no_op_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    assert find_band_urls_via_serper("Some Band") == _no_social()
 
 
-def test_google_cse_configured_reflects_env(monkeypatch):
-    monkeypatch.delenv("GOOGLE_SEARCH_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_SEARCH_CX", raising=False)
-    assert google_cse_configured() is False
-    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
-    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
-    assert google_cse_configured() is True
+def test_serper_configured_reflects_env(monkeypatch):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    assert serper_configured() is False
+    monkeypatch.setenv("SERPER_API_KEY", "key")
+    assert serper_configured() is True
 
 
-def test_google_cse_search_records_error_stats(monkeypatch, mocker):
+def test_serper_search_records_error_stats(monkeypatch, mocker):
     band_lookup.reset_stats()
-    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
-    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
-    mocker.patch("band_lookup.requests.get", side_effect=Exception("boom"))
-    assert _google_cse_search("q") == []
-    assert band_lookup.stats["google_queries"] == 1
-    assert band_lookup.stats["google_errors"] == 1
-    assert "boom" in band_lookup.stats["google_last_error"]
+    monkeypatch.setenv("SERPER_API_KEY", "key")
+    mocker.patch("band_lookup.requests.post", side_effect=Exception("boom"))
+    assert _serper_search("q") == []
+    assert band_lookup.stats["serper_queries"] == 1
+    assert band_lookup.stats["serper_errors"] == 1
+    assert "boom" in band_lookup.stats["serper_last_error"]
 
 
-def test_google_cse_search_disables_after_repeated_errors(monkeypatch, mocker):
+def test_serper_search_disables_after_repeated_errors(monkeypatch, mocker):
     band_lookup.reset_stats()
-    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
-    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
-    get_mock = mocker.patch("band_lookup.requests.get", side_effect=Exception("boom"))
-    for _ in range(band_lookup._GOOGLE_CSE_MAX_ERRORS):
-        _google_cse_search("q")
-    assert band_lookup.stats["google_disabled_reason"] is not None
-    assert get_mock.call_count == band_lookup._GOOGLE_CSE_MAX_ERRORS
+    monkeypatch.setenv("SERPER_API_KEY", "key")
+    post_mock = mocker.patch("band_lookup.requests.post", side_effect=Exception("boom"))
+    for _ in range(band_lookup._SERPER_MAX_ERRORS):
+        _serper_search("q")
+    assert band_lookup.stats["serper_disabled_reason"] is not None
+    assert post_mock.call_count == band_lookup._SERPER_MAX_ERRORS
 
     # Once disabled, further calls skip the request entirely for the rest of the run
-    _google_cse_search("q")
-    assert get_mock.call_count == band_lookup._GOOGLE_CSE_MAX_ERRORS
+    _serper_search("q")
+    assert post_mock.call_count == band_lookup._SERPER_MAX_ERRORS
 
 
 def test_merge_found_fills_empty_fields_only():
@@ -299,7 +292,7 @@ def test_merge_found_fills_empty_fields_only():
 
 
 def test_lookup_band_no_spotify_client_still_has_google_urls(mocker):
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value=_no_social())
     mocker.patch("band_lookup.find_band_urls_via_ddg", return_value=_no_social())
     mocker.patch("browser.is_available", return_value=False)
     result = lookup_band("Some Band", sp=None)
@@ -310,7 +303,7 @@ def test_lookup_band_no_spotify_client_still_has_google_urls(mocker):
 
 
 def test_lookup_band_uses_ddg_spotify_url(mocker):
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value=_no_social())
     mocker.patch("band_lookup.find_band_urls_via_ddg", return_value={
         "spotify_url": "https://open.spotify.com/artist/ABC123",
         "instagram_url": "https://instagram.com/theband",
@@ -335,7 +328,7 @@ def test_lookup_band_uses_ddg_spotify_url(mocker):
 
 
 def test_lookup_band_not_found_when_all_searches_fail(mocker):
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value=_no_social())
     mocker.patch("band_lookup.find_band_urls_via_ddg", return_value=_no_social())
     mocker.patch("band_lookup.lookup_spotify_direct", return_value=None)
     mocker.patch("browser.is_available", return_value=False)
@@ -346,7 +339,7 @@ def test_lookup_band_not_found_when_all_searches_fail(mocker):
 
 def test_lookup_band_done_when_only_instagram_found(mocker):
     """lookup_status is 'done' even when only social links (no Spotify) are found."""
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value=_no_social())
     mocker.patch("band_lookup.find_band_urls_via_ddg", return_value={
         "spotify_url": None,
         "instagram_url": "https://instagram.com/theband",
@@ -362,7 +355,7 @@ def test_lookup_band_done_when_only_instagram_found(mocker):
 
 
 def test_lookup_band_bandcamp_populated(mocker):
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value=_no_social())
     mocker.patch("band_lookup.find_band_urls_via_ddg", return_value={
         "spotify_url": None,
         "instagram_url": None,
@@ -376,9 +369,9 @@ def test_lookup_band_bandcamp_populated(mocker):
     assert result.lookup_status == "done"
 
 
-def test_lookup_band_uses_google_result_without_ddg_or_bing(mocker):
-    """When Google finds everything, Bing and DDG should never be invoked."""
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value={
+def test_lookup_band_uses_serper_result_without_ddg_or_bing(mocker):
+    """When Serper finds everything, Bing and DDG should never be invoked."""
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value={
         "spotify_url": "https://open.spotify.com/artist/ABC123",
         "instagram_url": "https://instagram.com/theband",
         "bandcamp_url": "https://theband.bandcamp.com",
@@ -402,9 +395,9 @@ def test_lookup_band_uses_google_result_without_ddg_or_bing(mocker):
     browser_available_mock.assert_not_called()
 
 
-def test_lookup_band_merges_bing_and_ddg_when_google_finds_nothing(mocker):
+def test_lookup_band_merges_bing_and_ddg_when_serper_finds_nothing(mocker):
     """Fields found by Bing should not be overwritten by a later DDG pass."""
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value=_no_social())
     mocker.patch("browser.is_available", return_value=True)
     mocker.patch("browser.search_bing_urls", return_value={
         "spotify_url": None,
@@ -426,11 +419,10 @@ def test_lookup_band_merges_bing_and_ddg_when_google_finds_nothing(mocker):
 
 # ── stats tracking ────────────────────────────────────────────────────────────
 
-def test_lookup_band_records_google_hit_when_configured(monkeypatch, mocker):
+def test_lookup_band_records_serper_hit_when_configured(monkeypatch, mocker):
     band_lookup.reset_stats()
-    monkeypatch.setenv("GOOGLE_SEARCH_API_KEY", "key")
-    monkeypatch.setenv("GOOGLE_SEARCH_CX", "cx")
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value={
+    monkeypatch.setenv("SERPER_API_KEY", "key")
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value={
         "spotify_url": "https://open.spotify.com/artist/ABC123",
         "instagram_url": None,
         "bandcamp_url": None,
@@ -443,26 +435,25 @@ def test_lookup_band_records_google_hit_when_configured(monkeypatch, mocker):
         "spotify_image_url": None,
     })
     lookup_band("Some Band", sp=mocker.MagicMock())
-    assert band_lookup.stats["google_bands_hit"] == 1
+    assert band_lookup.stats["serper_bands_hit"] == 1
     assert band_lookup.stats["bands_spotify_matched"] == 1
     assert band_lookup.stats["bands_total"] == 1
 
 
-def test_lookup_band_no_google_hit_when_unconfigured(monkeypatch, mocker):
+def test_lookup_band_no_serper_hit_when_unconfigured(monkeypatch, mocker):
     band_lookup.reset_stats()
-    monkeypatch.delenv("GOOGLE_SEARCH_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_SEARCH_CX", raising=False)
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
     mocker.patch("band_lookup.find_band_urls_via_ddg", return_value=_no_social())
     mocker.patch("browser.is_available", return_value=False)
     mocker.patch("band_lookup.lookup_spotify_direct", return_value=None)
     lookup_band("Some Band", sp=mocker.MagicMock())
-    assert band_lookup.stats["google_bands_hit"] == 0
+    assert band_lookup.stats["serper_bands_hit"] == 0
     assert band_lookup.stats["bands_not_found"] == 1
 
 
 def test_lookup_band_records_bandcamp_scrape_stats(mocker):
     band_lookup.reset_stats()
-    mocker.patch("band_lookup.find_band_urls_via_google", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value=_no_social())
     mocker.patch("band_lookup.find_band_urls_via_ddg", return_value={
         "spotify_url": None, "instagram_url": None,
         "bandcamp_url": "https://theband.bandcamp.com", "other_urls": [],

@@ -32,7 +32,11 @@ class BandResult:
     # Social/streaming URLs found via search — None if not found
     bandcamp_url: str | None = None
     bandcamp_album_id: str | None = None  # numeric album ID for embed iframe
+    bandcamp_snippet: str | None = None      # search-result blurb, if the search tier provided one
+    bandcamp_image_url: str | None = None    # search-result thumbnail, if the search tier provided one
     instagram_url: str | None = None
+    instagram_snippet: str | None = None
+    instagram_image_url: str | None = None
     other_urls: list[str] = field(default_factory=list)  # top 5 other search result URLs
     # Google search URLs — always constructed, even on lookup failure
     google_general_url: str = ""

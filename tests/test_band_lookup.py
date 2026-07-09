@@ -143,6 +143,25 @@ def test_classify_results_extracts_instagram():
     assert found["instagram_url"] == "https://www.instagram.com/somebandchicago"
 
 
+def test_classify_results_captures_instagram_snippet_and_image():
+    results = [{
+        "href": "https://www.instagram.com/somebandchicago",
+        "snippet": "1,204 Followers, 88 Following, 42 Posts",
+        "image": "https://example.com/thumb.jpg",
+    }]
+    found = _classify_results(results)
+    assert found["instagram_snippet"] == "1,204 Followers, 88 Following, 42 Posts"
+    assert found["instagram_image"] == "https://example.com/thumb.jpg"
+
+
+def test_classify_results_no_snippet_when_result_lacks_one():
+    """Bing/DDG results never carry snippet/image — should stay None, not KeyError."""
+    results = [{"href": "https://www.instagram.com/somebandchicago"}]
+    found = _classify_results(results)
+    assert found["instagram_snippet"] is None
+    assert found["instagram_image"] is None
+
+
 def test_classify_results_extracts_bandcamp():
     results = [{"href": "https://someband.bandcamp.com/"}]
     found = _classify_results(results)
@@ -182,7 +201,12 @@ def test_classify_results_excludes_search_engines():
 
 def test_classify_results_empty():
     found = _classify_results([])
-    assert found == {"spotify_url": None, "instagram_url": None, "bandcamp_url": None, "other_urls": []}
+    assert found == {
+        "spotify_url": None,
+        "instagram_url": None, "instagram_snippet": None, "instagram_image": None,
+        "bandcamp_url": None, "bandcamp_snippet": None, "bandcamp_image": None,
+        "other_urls": [],
+    }
 
 
 # ── _match_score ──────────────────────────────────────────────────────────────
@@ -222,7 +246,12 @@ def test_match_score_exact_match_with_foreign_genre_alone_still_accepted():
 # ── Serper / _merge_found ───────────────────────────────────────────────────
 
 def _no_social():
-    return {"spotify_url": None, "instagram_url": None, "bandcamp_url": None, "other_urls": []}
+    return {
+        "spotify_url": None,
+        "instagram_url": None, "instagram_snippet": None, "instagram_image": None,
+        "bandcamp_url": None, "bandcamp_snippet": None, "bandcamp_image": None,
+        "other_urls": [],
+    }
 
 
 def test_serper_search_returns_empty_when_unconfigured(monkeypatch):
@@ -236,7 +265,7 @@ def test_serper_search_parses_items(monkeypatch, mocker):
     mock_resp.json.return_value = {"organic": [{"link": "https://open.spotify.com/artist/ABC123"}]}
     mocker.patch("band_lookup.requests.post", return_value=mock_resp)
     results = _serper_search("some query")
-    assert results == [{"href": "https://open.spotify.com/artist/ABC123"}]
+    assert results == [{"href": "https://open.spotify.com/artist/ABC123", "snippet": None, "image": None}]
 
 
 def test_find_band_urls_via_serper_no_op_when_unconfigured(monkeypatch):
@@ -286,6 +315,43 @@ def test_merge_found_fills_empty_fields_only():
     assert merged["instagram_url"] == "https://instagram.com/theband"
     assert merged["bandcamp_url"] == "https://theband.bandcamp.com"
     assert merged["other_urls"] == ["https://theband.com"]
+
+
+def test_merge_found_carries_snippet_and_image_alongside_url():
+    dst = {"spotify_url": None, "instagram_url": None, "bandcamp_url": None, "other_urls": []}
+    src = {
+        "spotify_url": None,
+        "instagram_url": "https://instagram.com/theband",
+        "instagram_snippet": "A Chicago band.",
+        "instagram_image": "https://example.com/pic.jpg",
+        "bandcamp_url": None,
+        "other_urls": [],
+    }
+    merged = _merge_found(dst, src)
+    assert merged["instagram_snippet"] == "A Chicago band."
+    assert merged["instagram_image"] == "https://example.com/pic.jpg"
+
+
+def test_merge_found_does_not_overwrite_existing_url_snippet_with_later_tier():
+    dst = {
+        "spotify_url": None,
+        "instagram_url": "https://instagram.com/theband",
+        "instagram_snippet": "Found by Serper.",
+        "instagram_image": None,
+        "bandcamp_url": None,
+        "other_urls": [],
+    }
+    src = {
+        "spotify_url": None,
+        "instagram_url": "https://instagram.com/other-match",
+        "instagram_snippet": "Found by Bing (should be ignored).",
+        "instagram_image": None,
+        "bandcamp_url": None,
+        "other_urls": [],
+    }
+    merged = _merge_found(dst, src)
+    assert merged["instagram_url"] == "https://instagram.com/theband"
+    assert merged["instagram_snippet"] == "Found by Serper."
 
 
 # ── lookup_band ───────────────────────────────────────────────────────────────
@@ -393,6 +459,43 @@ def test_lookup_band_uses_serper_result_without_ddg_or_bing(mocker):
     assert result.bandcamp_url == "https://theband.bandcamp.com"
     ddg_mock.assert_not_called()
     browser_available_mock.assert_not_called()
+
+
+def test_lookup_band_populates_instagram_and_bandcamp_previews_from_serper(mocker):
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value={
+        "spotify_url": None,
+        "instagram_url": "https://instagram.com/theband",
+        "instagram_snippet": "1,204 Followers, 88 Following, 42 Posts",
+        "instagram_image": "https://example.com/ig-thumb.jpg",
+        "bandcamp_url": "https://theband.bandcamp.com",
+        "bandcamp_snippet": "Chicago post-punk trio.",
+        "bandcamp_image": "https://example.com/bc-thumb.jpg",
+        "other_urls": [],
+    })
+    mocker.patch("band_lookup.scrape_bandcamp_album_id", return_value=None)
+    mocker.patch("band_lookup.lookup_spotify_direct", return_value=None)
+    result = lookup_band("Some Band", sp=mocker.MagicMock())
+    assert result.instagram_snippet == "1,204 Followers, 88 Following, 42 Posts"
+    assert result.instagram_image_url == "https://example.com/ig-thumb.jpg"
+    assert result.bandcamp_snippet == "Chicago post-punk trio."
+    assert result.bandcamp_image_url == "https://example.com/bc-thumb.jpg"
+
+
+def test_lookup_band_previews_none_when_tier_provides_no_snippet(mocker):
+    """Bing/DDG-sourced links have no snippet/image — fields should stay None, not error."""
+    mocker.patch("band_lookup.find_band_urls_via_serper", return_value=_no_social())
+    mocker.patch("band_lookup.find_band_urls_via_ddg", return_value={
+        "spotify_url": None,
+        "instagram_url": "https://instagram.com/theband",
+        "bandcamp_url": None,
+        "other_urls": [],
+    })
+    mocker.patch("band_lookup.lookup_spotify_direct", return_value=None)
+    mocker.patch("browser.is_available", return_value=False)
+    result = lookup_band("Some Band", sp=mocker.MagicMock())
+    assert result.instagram_url == "https://instagram.com/theband"
+    assert result.instagram_snippet is None
+    assert result.instagram_image_url is None
 
 
 def test_lookup_band_merges_bing_and_ddg_when_serper_finds_nothing(mocker):

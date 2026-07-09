@@ -153,12 +153,32 @@ def _render_legend() -> str:
 
 # ── Component renderers ───────────────────────────────────────────────────────
 
+def _render_link_preview(css_class: str, icon_html: str, label: str, url: str, snippet, image_url) -> str:
+    """A richer social-link card with the search result's blurb/thumbnail, when available."""
+    thumb_html = (
+        f'<img class="link-preview-thumb" src="{_esc(image_url)}" alt="" loading="lazy">'
+        if image_url else ""
+    )
+    snippet_html = f'<span class="link-preview-snippet">{_esc(snippet)}</span>' if snippet else ""
+    return f"""<a class="link-preview {css_class}" href="{_esc(url)}" target="_blank">
+      {thumb_html}
+      <span class="link-preview-body">
+        <span class="link-preview-label">{icon_html} {_esc(label)}</span>
+        {snippet_html}
+      </span>
+    </a>"""
+
+
 def _render_band_card(b) -> str:
     name = _esc(b["name"])
     spotify_id = b["spotify_id"]
     spotify_url = b["spotify_url"]
     instagram_url = b["instagram_url"]
+    instagram_snippet = b["instagram_snippet"]
+    instagram_image_url = b["instagram_image_url"]
     bandcamp_url = b["bandcamp_url"]
+    bandcamp_snippet = b["bandcamp_snippet"]
+    bandcamp_image_url = b["bandcamp_image_url"]
     bandcamp_album_id = b["bandcamp_album_id"]
     image_url = b["spotify_image_url"]
     fallback_url = b["google_general_url"]
@@ -229,17 +249,33 @@ def _render_band_card(b) -> str:
             f'<a class="link-spotify" href="{_esc(spotify_url)}" target="_blank">'
             f'{_LOGO_SPOTIFY} Spotify</a>'
         )
+    # Instagram/Bandcamp: render as a richer preview card when the search tier
+    # (currently only Serper) surfaced a blurb; otherwise fall back to a plain link.
+    previews = []
     if instagram_url:
-        links.append(
-            f'<a class="link-instagram" href="{_esc(instagram_url)}" target="_blank">'
-            f'{_LOGO_INSTAGRAM} Instagram</a>'
-        )
+        if instagram_snippet:
+            previews.append(_render_link_preview(
+                "link-instagram", _LOGO_INSTAGRAM, "Instagram",
+                instagram_url, instagram_snippet, instagram_image_url,
+            ))
+        else:
+            links.append(
+                f'<a class="link-instagram" href="{_esc(instagram_url)}" target="_blank">'
+                f'{_LOGO_INSTAGRAM} Instagram</a>'
+            )
     if bandcamp_url:
-        links.append(
-            f'<a class="link-bandcamp" href="{_esc(bandcamp_url)}" target="_blank">'
-            f'{_LOGO_BANDCAMP} Bandcamp</a>'
-        )
+        if bandcamp_snippet:
+            previews.append(_render_link_preview(
+                "link-bandcamp", _LOGO_BANDCAMP, "Bandcamp",
+                bandcamp_url, bandcamp_snippet, bandcamp_image_url,
+            ))
+        else:
+            links.append(
+                f'<a class="link-bandcamp" href="{_esc(bandcamp_url)}" target="_blank">'
+                f'{_LOGO_BANDCAMP} Bandcamp</a>'
+            )
     links_html = f'<div class="band-links">{"".join(links)}</div>' if links else ""
+    previews_html = f'<div class="link-preview-list">{"".join(previews)}</div>' if previews else ""
 
     badges_html = _render_band_badges(b)
 
@@ -255,6 +291,7 @@ def _render_band_card(b) -> str:
         </div>
       </div>
       {links_html}
+      {previews_html}
     </div>"""
 
     # ── Right column: embeds ─────────────────────────────────

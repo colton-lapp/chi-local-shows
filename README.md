@@ -75,7 +75,7 @@ For each active venue in `venues.json`:
 ### Phase 2 — Band lookup
 
 For each new band, each step only filling in whatever the previous steps didn't find:
-1. **Serper** (Google search results as JSON): `"band name" chicago band` (skipped automatically if `SERPER_API_KEY` isn't set)
+1. **Serper** (Google search results as JSON): `"band name" chicago band` (skipped automatically if `SERPER_API_KEY` isn't set). When Serper finds the Instagram/Bandcamp link, it also captures the result's blurb and thumbnail — the site renders those as a small preview card instead of a plain button. Links found via Bing/DDG don't carry a blurb, so they render as a plain link (never breaks, just plainer).
 2. **Bing via Playwright**: headless browser search
 3. **DuckDuckGo**: last web-search fallback (the `ddgs` library is the most prone to rate-limiting under repeated automated queries)
 4. **Spotify API direct search**: broadest fallback, if still no Spotify URL

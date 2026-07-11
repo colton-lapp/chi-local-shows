@@ -443,6 +443,94 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
 .site-intro a { color: #1a6e33; font-weight: 600; }
 .site-intro a:hover { text-decoration: underline; }
 
+/* ── Collapsible intro/disclaimer ─────────────────────────── */
+.intro-details {
+  margin-top: 0.5rem;
+  border: 1px solid #d4d4d4;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.intro-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.45rem;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #333;
+  list-style: none;
+  user-select: none;
+  gap: 0.75rem;
+}
+
+.intro-summary::-webkit-details-marker { display: none; }
+
+.intro-summary::after {
+  content: "more info ▾";
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #616161;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.intro-details[open] .intro-summary {
+  border-bottom: 1px solid #ddd;
+}
+
+.intro-details[open] .intro-summary::after {
+  content: "less ▴";
+}
+
+.intro-detail-body {
+  padding: 0.55rem 0.85rem 0;
+  font-size: 0.82rem;
+  color: #777;
+  line-height: 1.5;
+}
+
+.site-intro .intro-ai-link {
+  display: block;
+  padding: 0.4rem 0.85rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1a6e33;
+}
+
+.intro-external-links {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 0.65rem;
+}
+
+.site-intro .intro-external-links a {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a6e33;
+}
+
+/* ── Filters hamburger toggle (mobile only) ────────────────── */
+.filters-toggle {
+  display: none; /* hidden on desktop */
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #aaa;
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.filters-toggle:hover { color: #fff; border-color: #777; }
+
 /* ── Collapsible day sections ─────────────────────────────── */
 .day-section summary.day-label {
   cursor: pointer;
@@ -583,6 +671,27 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
   border-radius: 6px;
 }
 
+.bandcamp-embed {
+  border: 1px solid #c8e8f4;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.bandcamp-embed iframe {
+  border-radius: 0;
+}
+
+.bandcamp-label {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #1DA0C3;
+  text-align: center;
+  padding: 0.1rem 0;
+  background: #f0faff;
+  letter-spacing: 0.03em;
+}
+
 
 /* ── Doc pages (about.html, ai-usage.html) ─────────────────── */
 .doc-page {
@@ -629,6 +738,35 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
 @media (max-width: 600px) {
   header { padding: 0.75rem 1rem; }
 
+  /* Stack title + date vertically; toggle button spans both rows on the right */
+  .header-top {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 0;
+  }
+
+  .header-top h1 {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .header-top .subtitle {
+    grid-column: 1;
+    grid-row: 2;
+    flex: none;
+    margin-top: 0.1rem;
+  }
+
+  .filters-toggle {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    margin-left: 0.75rem;
+    align-self: center;
+  }
+
   .show-venue-col { width: 64px; }
   .venue-thumb { width: 64px; height: 64px; }
   .venue-thumb-placeholder { width: 64px; height: 64px; }
@@ -645,4 +783,18 @@ a.band-name:hover { color: #1a5c36; text-decoration: underline; }
   }
 
   .filter-btn { font-size: 0.68rem; padding: 0.2rem 0.5rem; }
+
+  /* Filters hidden by default on mobile; shown when toggled */
+  #filters {
+    display: none;
+    margin-top: 0.6rem;
+  }
+  #filters.filters-open {
+    display: flex;
+  }
+
+  /* Show the hamburger toggle button on mobile */
+  .filters-toggle {
+    display: inline-flex;
+  }
 }

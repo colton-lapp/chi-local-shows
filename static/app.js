@@ -2,7 +2,7 @@
 
 const BADGE_META = {
   established:  { emoji: '🌟', label: 'Established Acts', tip: 'The average band on this bill has a substantial Spotify following.' },
-  rising:       { emoji: '🌱', label: 'Rising Night',     tip: 'This bill leans toward newer, still-emerging acts.' },
+  rising:       { emoji: '🌱', label: 'Newer Acts',     tip: 'This bill leans toward newer, still-emerging acts.' },
   free:         { emoji: '🎟️', label: 'Free Show',        tip: 'This show appears to be free to attend.' },
   deep_catalog: { emoji: '📀', label: 'Deep Catalog',     tip: 'This band has released a large catalog of tracks.' },
   new:          { emoji: '🆕', label: 'New Act',          tip: "This band's first release came out in the last year." },

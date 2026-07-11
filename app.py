@@ -49,7 +49,7 @@ def _esc(s) -> str:
 # key -> (emoji, label, tooltip). Thresholds are rough starting points, easy to retune.
 _SHOW_BADGES = {
     "established": ("🌟", "Established Acts", "The average band on this bill has a substantial Spotify following."),
-    "rising": ("🌱", "Rising Night", "This bill leans toward newer, still-emerging acts."),
+    "rising": ("🌱", "Newer Acts", "This bill leans toward newer, still-emerging acts."),
     "free": ("🎟️", "Free Show", "This show appears to be free to attend."),
 }
 _BAND_BADGES = {
@@ -84,40 +84,39 @@ def _badge_html(key: str, table: dict, css_class: str) -> str:
     return f'<span class="{css_class}" title="{_esc(tooltip)}">{emoji} {_esc(label)}</span>'
 
 
-def _render_band_badges(b) -> str:
+def _band_badge_keys(b) -> list[str]:
     keys = []
     if b["spotify_track_count"] and b["spotify_track_count"] > _DEEP_CATALOG_TRACKS:
         keys.append("deep_catalog")
-
     years = _years_since(b["spotify_first_release"])
     if years is not None:
         if years < _NEW_ACT_YEARS:
             keys.append("new")
         elif years >= _VETERAN_YEARS:
             keys.append("veteran")
-
     followers = b["spotify_followers"]
     if followers is not None:
         if followers > _POPULAR_FOLLOWERS:
             keys.append("popular")
         elif followers < _UNDERGROUND_FOLLOWERS:
             keys.append("underground")
+    return keys
 
+
+def _render_band_badges(b) -> str:
+    keys = _band_badge_keys(b)
     if not keys:
         return ""
     badges = "".join(_badge_html(k, _BAND_BADGES, "band-badge") for k in keys)
     return f'<div class="band-badges">{badges}</div>'
 
 
-def _render_show_badges(bands, ticket_price) -> str:
+def _show_badge_keys(bands, ticket_price) -> list[str]:
     keys = []
-
     follower_counts = [b["spotify_followers"] for b in bands if b["spotify_followers"] is not None]
     avg_followers = sum(follower_counts) / len(follower_counts) if follower_counts else None
-
     year_gaps = [y for y in (_years_since(b["spotify_first_release"]) for b in bands) if y is not None]
     avg_years = sum(year_gaps) / len(year_gaps) if year_gaps else None
-
     if avg_followers is not None and avg_followers > _ESTABLISHED_AVG_FOLLOWERS:
         keys.append("established")
     elif (
@@ -125,10 +124,13 @@ def _render_show_badges(bands, ticket_price) -> str:
         and avg_followers < _RISING_AVG_FOLLOWERS and avg_years < _RISING_AVG_YEARS
     ):
         keys.append("rising")
-
     if ticket_price and re.search(r"free|\$0\b", ticket_price, re.IGNORECASE):
         keys.append("free")
+    return keys
 
+
+def _render_show_badges(bands, ticket_price) -> str:
+    keys = _show_badge_keys(bands, ticket_price)
     return "".join(_badge_html(k, _SHOW_BADGES, "show-badge") for k in keys)
 
 
@@ -314,7 +316,8 @@ def _render_band_card(b) -> str:
         )
         embeds.append(
             f'<div class="bandcamp-embed"><iframe src="{src}" height="42" '
-            f'seamless loading="lazy"></iframe></div>'
+            f'seamless loading="lazy"></iframe>'
+            f'<span class="bandcamp-label">Bandcamp audio</span></div>'
         )
 
     embeds_col = f'<div class="band-embeds-col">{"".join(embeds)}</div>'
@@ -411,9 +414,14 @@ def _render_show_card(show, bands) -> str:
             f'</div><div class="band-embeds-col"></div></div>'
         )
 
+    all_badge_keys = set(_show_badge_keys(bands, show["ticket_price"]))
+    for b in bands:
+        all_badge_keys.update(_band_badge_keys(b))
+    badges_attr = " ".join(sorted(all_badge_keys))
+
     return (
         f'<div class="show-card" '
-        f'data-date="{_esc(show_date)}" data-venue="{_esc(venue_name)}">\n'
+        f'data-date="{_esc(show_date)}" data-venue="{_esc(venue_name)}" data-badges="{badges_attr}">\n'
         f'  <div class="show-header">\n'
         f'    {show_layout}\n'
         f'    {notes_html}\n'
@@ -437,18 +445,20 @@ def _render_day_section(label: str, cards: list[str], date_iso: str) -> str:
 
 def _render_intro() -> str:
     return """<section class="site-intro">
-    <p><strong>A Chicago local-show aggregator.</strong> This page collects upcoming show
-    listings from a handful of local Chicago venues in one place &mdash; show details, Spotify
-    previews of songs (when available), and links to tickets and band profiles.</p>
-    <p>⚠️ <strong>This website may contain errors </strong> ⚠️ This app uses AI to read venue webpages,
-    parse the results, and then search the internet for spotify/instagram/bandcamp links. Shows may be missed, incorrect bands might
-    be identified, and show details can be incorrectly parsed. All show details should be confirmed on venue website.
-    <a href="ai-usage.html">Learn More</a></p>
-    <p>This is a hobby project, built and hosted for free on GitHub.
-    <a href="https://github.com/colton-lapp/chi-local-shows" target="_blank">View the code</a> &middot;
-    <a href="about.html">How this works / FAQ</a></p>
-    <p>AI helped build this site, and a small AI model is used weekly to pull show listings out
-    of venue websites. <a href="ai-usage.html">Read how and why &rarr;</a></p>
+    <p><strong>A Chicago local-show aggregator </strong> - upcoming shows from local venues in one place,
+    with Spotify previews, band info, and links to tickets.</p>
+    <details class="intro-details">
+      <summary class="intro-summary">Note: This website may contain errors</summary>
+      <p class="intro-detail-body">This app uses AI to read venue webpages, parse results, and
+      search the internet for Spotify, Instagram, and Bandcamp links. Shows may be missed, incorrect
+      bands might be identified, and show details can be incorrectly parsed. Always confirm show
+      details on the venue website.</p>
+      <a class="intro-ai-link" href="ai-usage.html">Read about AI usage on this site &rarr;</a>
+    </details>
+    <div class="intro-external-links">
+      <a href="about.html">How this project works</a>
+      <a href="https://github.com/colton-lapp/chi-local-shows" target="_blank">View the code</a>
+    </div>
   </section>"""
 
 
@@ -504,7 +514,7 @@ def _build_html(static_root: str = "/static") -> str:
             f"{today.strftime('%B %-d')} and {end.strftime('%B %-d, %Y')}.</p>"
         )
     )
-    body = _render_intro() + _render_legend() + listing
+    body = _render_intro() + listing
     return _render_page(body, today, end, static_root)
 
 
